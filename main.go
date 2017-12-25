@@ -1,12 +1,10 @@
-// buffered-read-benchmark benchmarks the peformance of reading
-// from /dev/zero on the server to a []byte on the client via io.Copy.
 package main
 
 import (
-	"container/list"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/pkg/sftp"
 	com "github.com/takemxn/gssh/common"
 	"golang.org/x/crypto/ssh"
 	"log"
@@ -15,15 +13,75 @@ import (
 	"os/user"
 	"path"
 	"regexp"
-	"strconv"
-	"strings"
 )
 
-type Item struct {
-	username string
-	hostname string
-	filename string
-	port     int
+type Loc struct {
+	Username string
+	Hostname string
+	Filename string
+	Port     int
+	Password string
+}
+func (loc *Loc) IsRemote() bool {
+	return len(loc.Hostname) != 0
+}
+type Client struct {
+	*Loc
+	sftp   *sftp.Client
+	ssh    *ssh.Client
+	os.FileInfo
+}
+func Connect(loc *Loc)(c *Client, err error){
+	// Create client config
+	config := &ssh.ClientConfig{
+		User: loc.Username,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(loc.Password),
+		},
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
+	}
+	addr := fmt.Sprintf("%s:%d", loc.Hostname, loc.Port)
+	ssh, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		log.Printf("unable to connect: %s", err)
+		return
+	}
+
+	sftp, err := sftp.NewClient(ssh, sftp.MaxPacket(*SIZE))
+	if err != nil {
+		ssh.Close()
+		log.Fatalf("unable to start sftp subsytem: %v", err)
+	}
+	if loc.IsRemote() {
+		c.FileInfo, err = sftp.Stat(loc.Filename)
+		if err != nil {
+			log.Fatalf("stat error")
+		}
+	}else{
+		c.FileInfo, err = os.Stat(loc.Filename)
+		if err != nil {
+			log.Fatalf("stat error")
+		}
+	}
+	c.ssh = ssh
+	c.sftp = sftp
+	c.Loc = loc
+	return 
+}
+func (c *Client) Close() {
+	if c.sftp != nil {
+		c.sftp.Close()
+		c.sftp = nil
+	}
+	if c.ssh != nil {
+		c.ssh.Close()
+		c.ssh = nil
+	}
+}
+func (c *Client) IsDir() bool{
+	return c.IsDir()
 }
 
 var (
@@ -36,42 +94,62 @@ var (
 	tFlag           bool
 	vFlag           bool
 	hFlag           bool
+	rFlag           bool
 	NoPasswordError = errors.New("no password")
+	locations       []*Loc
+	SIZE            = flag.Int("s", 1<<15, "set max packet size")
 )
 
 func init() {
 	parseArg()
 }
 
+func copy(src, dst *Client) (err error) {
+	if src.IsDir() && !rFlag {
+		log.Fatalf("not regular file %v", src.Filename)
+	}
+	if src.IsDir() && rFlag {
+	}
+	if dst.IsRemote() {
+		if dst.IsDir() {
+			c := dst.sftp
+			c.Create(dst.Filename + "/" + src.Filename)
+		}
+	}
+	return
+}
 func main() {
-	// Create client config
-	config := &ssh.ClientConfig{
-		User: com.Username,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(com.Password),
-		},
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return nil
-		},
-	}
-	addr := fmt.Sprintf("%s:%d", com.Hostname, com.Port)
-	conn, err := ssh.Dial("tcp", addr, config)
+	// get last location
+	dst := locations[len(locations)-1]
+
+	dConn, err := Connect(dst)
 	if err != nil {
-		log.Printf("unable to connect: %s", err)
-		return
+		log.Fatalf("dest connect error")
 	}
-	defer conn.Close()
+	defer dConn.Close()
+
+	for _, v := range locations[:len(locations)-1] {
+		sConn, err := Connect(v)
+		if err != nil {
+			log.Fatalf("src connect error")
+		}
+		defer sConn.Close()
+
+		err = copy(sConn, dConn)
+		if err != nil {
+			log.Fatalf("file copy error")
+		}
+	}
 }
 func parseArg() (err error) {
-	port = 0
-	args := os.Args
-	f := flag.NewFlagSet(args[0], flag.ContinueOnError)
+	f := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	f.StringVar(&password, "p", "", "password")
 	f.IntVar(&port, "P", 22, "port")
 	f.StringVar(&configPath, "f", "", "password file path")
 	f.BoolVar(&vFlag, "v", false, "show Version")
 	f.BoolVar(&hFlag, "h", false, "show help")
-	if err = f.Parse(args[1:]); err != nil {
+	f.BoolVar(&rFlag, "r", false, "ecursively copy entire directories.")
+	if err = f.Parse(os.Args[1:]); err != nil {
 		return
 	}
 	usage := func() {
@@ -92,7 +170,6 @@ func parseArg() (err error) {
 	}
 
 	// create source files
-	srcList := list.New()
 	for _, v := range f.Args() {
 		re := regexp.MustCompile(`(.*)@?(.*):(.*)`)
 		group := re.FindStringSubmatch(v)
@@ -110,57 +187,23 @@ func parseArg() (err error) {
 				}
 				uname = u.Username
 			}
-			item := &Item{
-				username: uname,
-				hostname: hname,
-				filename: fname,
-				port:     port,
+			loc := &Loc{
+				Username: uname,
+				Hostname: hname,
+				Filename: fname,
+				Password: password,
+				Port:     port,
 			}
-			srcList.PushBack(item)
+			// リモートロケーションかつパスワードが設定されていなければパスワードを入力を促す
+			if loc.IsRemote() && len(password) == 0 {
+				p, err := com.ReadPasswordFromTerminal()
+				if err != nil {
+					return err
+				}
+				loc.Password = p
+			}
+			locations = append(locations, loc)
 		}
 	}
-	rest := f.Arg(0)
-
-	// Get hostname
-	s := strings.Split(rest, ":")
-	if len(s[0]) == 0 {
-		return fmt.Errorf("hostname error")
-	}
-	hostname = s[0]
-
-	// Get port number
-	if len(s) >= 2 {
-		port, err = strconv.Atoi(s[1])
-	}
-
-	switch {
-	case password != "":
-	default:
-		err = com.ReadPasswords()
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return err
-		}
-		com.Password = com.GetPassword(com.Username, com.Hostname, com.Port)
-		if len(com.Password) == 0 {
-			return NoPasswordError
-		}
-	}
-
-	// command
-	command = strings.Join(f.Args()[1:], " ")
-
 	return
-}
-func usage() {
-	fmt.Fprintf(os.Stderr,
-		`Usage: gscp [-f file] [-p password] [-P port] [[user@]host1:]file1 ... [[user@]host2:]file2
-      if -p password is not set, $GSSH_PASSWORDFILE, $GSSH_PASSWORDS variable will be used.
-      otherwise ~/.gssh file is used
-        -p  password
-        -P  port
-        -f  password list filepath
-        -v  Show version
-        -h  Show help
-`)
 }

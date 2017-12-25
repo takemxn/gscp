@@ -9,6 +9,24 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/kr/fs"
+  packages = ["."]
+  revision = "2788f0dbd16903de03cb8186e5c7d97b69ad387b"
+
+[[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
+  version = "v0.8.0"
+
+[[projects]]
+  name = "github.com/pkg/sftp"
+  packages = ["."]
+  revision = "fb7a319a82ce2f9f617dfdf132d3899330c68796"
+  version = "1.1.1"
+
+[[projects]]
+  branch = "master"
   name = "github.com/takemxn/gssh"
   packages = ["common"]
   revision = "353dd052e919d360267489b0204ffc1ee6c07df1"
@@ -28,6 +46,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "541f98c31fe185a03d7cf4b1e56110b9f743265291bc335a6d369b0963aee7eb"
+  inputs-digest = "d52d23535dcc3d1a922788181214b47f621e069555a460332a8f67684aeb260a"
   solver-name = "gps-cdcl"
   solver-version = 1
