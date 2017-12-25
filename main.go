@@ -3,38 +3,39 @@
 package main
 
 import (
-	"fmt"
-	"os"
+	"container/list"
 	"errors"
 	"flag"
-	"path"
-	"strings"
-	"os/user"
-	"strconv"
-	"container/list"
-	"regexp"
-	"net"
-	"log"
-	"golang.org/x/crypto/ssh"
+	"fmt"
 	com "github.com/takemxn/gssh/common"
+	"golang.org/x/crypto/ssh"
+	"log"
+	"net"
+	"os"
+	"os/user"
+	"path"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 type Item struct {
 	username string
 	hostname string
 	filename string
-	port int
+	port     int
 }
+
 var (
-	password string
-	username string
-	hostname string
-	port int
-	configPath string
-	command string
-	tFlag      bool
-	vFlag      bool
-	hFlag      bool
+	password        string
+	username        string
+	hostname        string
+	port            int
+	configPath      string
+	command         string
+	tFlag           bool
+	vFlag           bool
+	hFlag           bool
 	NoPasswordError = errors.New("no password")
 )
 
@@ -73,7 +74,7 @@ func parseArg() (err error) {
 	if err = f.Parse(args[1:]); err != nil {
 		return
 	}
-	usage := func(){
+	usage := func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", path.Base(os.Args[0]))
 		f.PrintDefaults()
 	}
@@ -90,14 +91,14 @@ func parseArg() (err error) {
 		os.Exit(1)
 	}
 
-	// create source files 
+	// create source files
 	srcList := list.New()
 	for _, v := range f.Args() {
 		re := regexp.MustCompile(`(.*)@?(.*):(.*)`)
 		group := re.FindStringSubmatch(v)
-		if len(group) == 0{
+		if len(group) == 0 {
 			return fmt.Errorf("argument error")
-		}else{
+		} else {
 			uname := group[0]
 			hname := group[1]
 			fname := group[2]
@@ -110,10 +111,10 @@ func parseArg() (err error) {
 				uname = u.Username
 			}
 			item := &Item{
-				username:uname,
-				hostname:hname,
-				filename:fname,
-				port:port,
+				username: uname,
+				hostname: hname,
+				filename: fname,
+				port:     port,
 			}
 			srcList.PushBack(item)
 		}
