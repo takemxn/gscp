@@ -4,85 +4,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/pkg/sftp"
-	com "github.com/takemxn/gssh/common"
-	"golang.org/x/crypto/ssh"
 	"log"
-	"net"
 	"os"
 	"os/user"
 	"path"
 	"regexp"
+	"path/filepath"
+	com "github.com/takemxn/gssh/common"
 )
-
-type Loc struct {
-	Username string
-	Hostname string
-	Filename string
-	Port     int
-	Password string
-}
-func (loc *Loc) IsRemote() bool {
-	return len(loc.Hostname) != 0
-}
-type Client struct {
-	*Loc
-	sftp   *sftp.Client
-	ssh    *ssh.Client
-	os.FileInfo
-}
-func Connect(loc *Loc)(c *Client, err error){
-	// Create client config
-	config := &ssh.ClientConfig{
-		User: loc.Username,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(loc.Password),
-		},
-		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-			return nil
-		},
-	}
-	addr := fmt.Sprintf("%s:%d", loc.Hostname, loc.Port)
-	ssh, err := ssh.Dial("tcp", addr, config)
-	if err != nil {
-		log.Printf("unable to connect: %s", err)
-		return
-	}
-
-	sftp, err := sftp.NewClient(ssh, sftp.MaxPacket(*SIZE))
-	if err != nil {
-		ssh.Close()
-		log.Fatalf("unable to start sftp subsytem: %v", err)
-	}
-	if loc.IsRemote() {
-		c.FileInfo, err = sftp.Stat(loc.Filename)
-		if err != nil {
-			log.Fatalf("stat error")
-		}
-	}else{
-		c.FileInfo, err = os.Stat(loc.Filename)
-		if err != nil {
-			log.Fatalf("stat error")
-		}
-	}
-	c.ssh = ssh
-	c.sftp = sftp
-	c.Loc = loc
-	return 
-}
-func (c *Client) Close() {
-	if c.sftp != nil {
-		c.sftp.Close()
-		c.sftp = nil
-	}
-	if c.ssh != nil {
-		c.ssh.Close()
-		c.ssh = nil
-	}
-}
-func (c *Client) IsDir() bool{
-	return c.IsDir()
-}
 
 var (
 	password        string
@@ -103,17 +32,32 @@ var (
 func init() {
 	parseArg()
 }
-
-func copy(src, dst *Client) (err error) {
-	if src.IsDir() && !rFlag {
-		log.Fatalf("not regular file %v", src.Filename)
-	}
-	if src.IsDir() && rFlag {
-	}
-	if dst.IsRemote() {
-		if dst.IsDir() {
-			c := dst.sftp
-			c.Create(dst.Filename + "/" + src.Filename)
+func copy(dst, src *Client) (err error) {
+	if rFlag {
+		err = src.Walk(src.Filename, func(path string, info os.FileInfo, e error)(err error){
+			if e != nil {
+				return e
+			}
+			if info.IsDir() && dst.IsDir(){
+				dirname := filepath.Base(path)
+				err = dst.Mkdir(dst.Filename + "/" + dirname, info.Mode())
+				if err != nil {
+					return err
+				}
+			}else if info.Mode().IsRegular() && dst.IsDir() {
+				p := filepath.Base(path)
+				err = copyFile(dst, dst.Filename + "/" + p, src, path) 
+			}
+			return
+		})
+	}else{
+		if dst.IsDir(){
+			p := filepath.Base(src.Filename)
+			err = copyFile(dst, dst.Filename + "/" + p, src, src.Filename) 
+		}else if src.Mode().IsRegular(){
+			err = copyFile(dst, dst.Filename, src, src.Filename) 
+		}else{
+			log.Fatalf("not regular file")
 		}
 	}
 	return
@@ -122,23 +66,20 @@ func main() {
 	// get last location
 	dst := locations[len(locations)-1]
 
-	dConn, err := Connect(dst)
+	dcon, err := Connect(dst)
 	if err != nil {
 		log.Fatalf("dest connect error")
 	}
-	defer dConn.Close()
+	defer dcon.Close()
 
 	for _, v := range locations[:len(locations)-1] {
-		sConn, err := Connect(v)
+		scon, err := Connect(v)
 		if err != nil {
 			log.Fatalf("src connect error")
 		}
-		defer sConn.Close()
+		defer scon.Close()
 
-		err = copy(sConn, dConn)
-		if err != nil {
-			log.Fatalf("file copy error")
-		}
+		copy(scon, dcon)
 	}
 }
 func parseArg() (err error) {
