@@ -7,15 +7,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type File struct{
-	r *sftp.File
-	l *os.File
+type File interface {
+	io.ReadWriteCloser
 }
 type Client struct{
 	*Loc
+	info os.FileInfo
 	sftp   *sftp.Client
 	ssh    *ssh.Client
-	os.FileInfo
 }
 
 func (f *Client) Mkdir(path string, mode os.FileMode) (err error){
@@ -33,11 +32,11 @@ func (f *Client) Mkdir(path string, mode os.FileMode) (err error){
 	}
 	return
 }
-func (f *Client) Create(path string)(file *File, err error){
-	if f.sftp != nil {
-		file.r, err = f.sftp.Create(path)
+func (c *Client) Create(path string)(file File, err error){
+	if c.IsSftp() {
+		file,err = c.sftp.Create(path)
 	}else{
-		file.l, err = os.Create(path)
+		file,err = os.Create(path)
 	}
 	return
 }
@@ -66,46 +65,34 @@ func (c *Client) Close() {
 	}
 }
 func (c *Client) IsDir() bool{
-	return c.IsDir()
-}
-func (c *Client) Rel(basepath, path string) (rel string, err error){
-	info, err := os.Lstat(basepath)
+	info, err := os.Lstat(c.Path)
 	if err != nil {
-		return
+		return false
 	}
-	if info.Mode().IsRegular(){
-		rel = basepath
-	}
-	return
+	return info.IsDir()
 }
-func (c *Client) Open(path string)(file *File, err error){
-	return
+func (c *Client) IsSftp() bool {
+	return c.sftp != nil
 }
-func (file *File) Copy(src *File)(err error){
-	if file.r != nil {
-		if src.r != nil {
-			_, err = io.Copy(file.r, src.r)
-		}else if src.l != nil {
-			_, err = io.Copy(file.r, src.l)
-		}
+func (c *Client) Open(path string)(file File, err error){
+	if c.IsSftp() {
+		file, err = c.sftp.Open(path)
 	}else{
-		if src.r != nil {
-			_, err = io.Copy(file.l, src.r)
-		}else if src.l != nil {
-			_, err = io.Copy(file.l, src.l)
-		}
+		file, err = os.Open(path)
 	}
 	return
 }
 func copyFile(dst *Client, dname string, src *Client, sname string) (err error){
-	sfile, err := src.Open(sname)
+	s, err := src.Open(sname)
 	if err != nil {
 		return
 	}
-	dfile, err := dst.Open(dname)
+	defer s.Close()
+	d, err := dst.Create(dname)
 	if err != nil {
 		return
 	}
-	dfile.Copy(sfile)
+	defer d.Close()
+	_, err = io.Copy(d, s)
 	return
 }

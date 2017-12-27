@@ -32,43 +32,13 @@ var (
 func init() {
 	parseArg()
 }
-func copy(dst, src *Client) (err error) {
-	if rFlag {
-		err = src.Walk(src.Filename, func(path string, info os.FileInfo, e error)(err error){
-			if e != nil {
-				return e
-			}
-			if info.IsDir() && dst.IsDir(){
-				dirname := filepath.Base(path)
-				err = dst.Mkdir(dst.Filename + "/" + dirname, info.Mode())
-				if err != nil {
-					return err
-				}
-			}else if info.Mode().IsRegular() && dst.IsDir() {
-				p := filepath.Base(path)
-				err = copyFile(dst, dst.Filename + "/" + p, src, path) 
-			}
-			return
-		})
-	}else{
-		if dst.IsDir(){
-			p := filepath.Base(src.Filename)
-			err = copyFile(dst, dst.Filename + "/" + p, src, src.Filename) 
-		}else if src.Mode().IsRegular(){
-			err = copyFile(dst, dst.Filename, src, src.Filename) 
-		}else{
-			log.Fatalf("not regular file")
-		}
-	}
-	return
-}
 func main() {
 	// get last location
 	dst := locations[len(locations)-1]
 
 	dcon, err := Connect(dst)
 	if err != nil {
-		log.Fatalf("dest connect error")
+		log.Fatalf("dest connect error %v\n", err)
 	}
 	defer dcon.Close()
 
@@ -79,7 +49,7 @@ func main() {
 		}
 		defer scon.Close()
 
-		copy(scon, dcon)
+		copy(dcon, scon)
 	}
 }
 func parseArg() (err error) {
@@ -112,38 +82,86 @@ func parseArg() (err error) {
 
 	// create source files
 	for _, v := range f.Args() {
-		re := regexp.MustCompile(`(.*)@?(.*):(.*)`)
+		uname, hname, fname := "", "", ""
+		re := regexp.MustCompile(`^(.*)@(.*):(.*)$`)
 		group := re.FindStringSubmatch(v)
-		if len(group) == 0 {
-			return fmt.Errorf("argument error")
-		} else {
-			uname := group[0]
-			hname := group[1]
-			fname := group[2]
-			if len(hname) > 0 && len(uname) == 0 {
-				// set current username if no username specified
-				u, err := user.Current()
-				if err != nil {
-					return fmt.Errorf("argument error")
-				}
-				uname = u.Username
+		if len(group) == 4{
+			uname = group[1]
+			hname = group[2]
+			fname = group[3]
+		}else{
+			re := regexp.MustCompile(`^(.*):(.*)$`)
+			group := re.FindStringSubmatch(v)
+			if len(group) == 3 {
+				hname = group[1]
+				fname = group[2]
+			}else{
+				fname = v
 			}
-			loc := &Loc{
-				Username: uname,
-				Hostname: hname,
-				Filename: fname,
-				Password: password,
-				Port:     port,
+		}
+		if len(hname) > 0 && len(uname) == 0 {
+			// set current username if no username specified
+			u, err := user.Current()
+			if err != nil {
+				return fmt.Errorf("argument error")
 			}
-			// リモートロケーションかつパスワードが設定されていなければパスワードを入力を促す
-			if loc.IsRemote() && len(password) == 0 {
-				p, err := com.ReadPasswordFromTerminal()
-				if err != nil {
-					return err
-				}
-				loc.Password = p
+			uname = u.Username
+		}
+		loc := &Loc{
+			Username: uname,
+			Hostname: hname,
+			Path: fname,
+			Password: password,
+			Port:     port,
+		}
+		// リモートロケーションかつパスワードが設定されていなければパスワードを入力を促す
+		if loc.IsRemote() && len(password) == 0 {
+			com.Username = loc.Username
+			com.Hostname = loc.Hostname
+			p, err := com.ReadPasswordFromTerminal()
+			if err != nil {
+				return err
 			}
-			locations = append(locations, loc)
+			loc.Password = p
+		}
+		locations = append(locations, loc)
+	}
+	return
+}
+func rcopy(dst, src *Client) (err error) {
+	err = src.Walk(src.Path, func(path string, info os.FileInfo, e error)(err error){
+		if e != nil {
+			return e
+		}
+		if info.IsDir() && dst.IsDir(){
+			dirname := filepath.Base(path)
+			err = dst.Mkdir(dst.Path + "/" + dirname, info.Mode())
+			if err != nil {
+				return err
+			}
+		}else if info.Mode().IsRegular() && dst.IsDir() {
+			p := filepath.Base(path)
+			err = copyFile(dst, dst.Path + "/" + p, src, path) 
+		}else if info.Mode().IsRegular(){
+			err = copyFile(dst, dst.Path, src, path) 
+		}else{
+			err = fmt.Errorf("not regular file")
+		}
+		return
+	})
+	return
+}
+func copy(dst, src *Client) (err error) {
+	if rFlag {
+		err = rcopy(dst, src)
+	}else{
+		if !src.info.Mode().IsRegular() {
+			err = fmt.Errorf("not regular file")
+		}else if dst.IsDir(){
+			fname := filepath.Base(src.Path)
+			err = copyFile(dst, dst.Path + "/" + fname, src, src.Path) 
+		}else{
+			err = copyFile(dst, dst.Path, src, src.Path) 
 		}
 	}
 	return
