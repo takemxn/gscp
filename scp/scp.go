@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/laher/uggo"
+	"golang.org/x/crypto/ssh"
 	sshcon "gssh/shared"
 	"io"
 	"os"
@@ -32,6 +33,12 @@ type SecureCopier struct {
 	dstHost string
 	dstUser string
 	dstFile string
+	outPipe, errPipe io.Writer
+
+	args []string
+	dstReader *io.PipeReader
+	dstWriter *io.PipeWriter
+	session *ssh.Session
 }
 func (scp *SecureCopier) Name() string {
 	return "scp"
@@ -57,21 +64,21 @@ func (scp *SecureCopier) ParseFlags(call []string, errPipe io.Writer) (error, in
 		return errors.New("This scp does NOT implement 'remote-remote scp'. Yet."), 1
 	}
 	args := flagSet.Args()
-	if len(args) != 2 {
+	if len(args) < 2 {
 		flagSet.Usage()
 		return errors.New("Not enough args"), 1
 	}
-
-	scp.srcFile, scp.srcHost, scp.srcUser, err = parseTarget(args[0])
-	if err != nil {
-		fmt.Fprintln(errPipe, "Error parsing source")
-		return err, 1
-	}
-	scp.dstFile, scp.dstHost, scp.dstUser, err = parseTarget(args[1])
-	if err != nil {
-		fmt.Fprintln(errPipe, "Error parsing destination")
-		return err, 1
-	}
+	scp.args=args
+	// scp.srcFile, scp.srcHost, scp.srcUser, err = parseTarget(args[0])
+	// if err != nil {
+	// 	fmt.Fprintln(errPipe, "Error parsing source")
+	// 	return err, 1
+	// }
+	// scp.dstFile, scp.dstHost, scp.dstUser, err = parseTarget(args[1])
+	// if err != nil {
+	// 	fmt.Fprintln(errPipe, "Error parsing destination")
+	// 	return err, 1
+	// }
 	return nil, 0
 }
 
@@ -121,7 +128,6 @@ func (scp *SecureCopier) Exec(inPipe io.Reader, outPipe io.Writer, errPipe io.Wr
 	}
 	return nil, 0
 }
-
 //TODO: error for multiple ats or multiple colons
 func parseTarget(target string) (string, string, string, error) {
 	//treat windows drive refs as local
@@ -166,7 +172,52 @@ func ScpCli(args []string) (error, int) {
 	}
 	err, status = scper.Exec(os.Stdin, os.Stdout, os.Stderr)
 	return err, status
-
-
+}
+func (scp *SecureCopier) Exec2(inPipe io.Reader, outPipe io.Writer, errPipe io.Writer) (err error, status int) {
+	remoteCopy := false
+	for _,v := range scp.args[:] {
+		_,host,_,err := parseTarget(v)
+		if err != nil {
+			return err, 0
+		}
+		if host != "" {
+			remoteCopy = true
+			break
+		}
+	}
+	if remoteCopy == false {
+		// local copy with scp
+		// not supported yet
+		return
+	}
+	e := make(chan error)
+	buf := make(chan []byte)
+	scp.dstFile, scp.dstHost, scp.dstFile, err = parseTarget(scp.args[len(scp.args)-1])
+	if err != nil {
+		return err, 0
+	}
+	r, w, err := scp.OpenDst()
+	if err != nil {
+		return err, 0
+	}
+	defer r.Close()
+	defer w.Close()
+	scp.dstReader = r
+	scp.dstWriter = w
+	go func(){
+		for _,v := range scp.args[0:len(scp.args)-2] {
+			file, host, user, err := parseTarget(v)
+			if err != nil {
+				e <- err
+				return
+			}
+			err = scp.Copy(file, host, user)
+			if err != nil {
+				e <- err
+				return
+			}
+		}
+	}()
+	return nil, 0
 }
 
