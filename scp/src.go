@@ -81,7 +81,7 @@ func (s *src) Start(cmd string) error               { return nil }
 func (s *src) Wait() error               { return nil }
 func (s *src) Close() error                       { return nil }
 
-func (scp *Scp) openSrc(file, user, host string) (s Session, err error) {
+func (scp *Scp) openSrc(file, host, user string) (s Session, err error) {
 	if host != "" {
 		s, err = scp.openFrom(file, user, host)
 		if err != nil {
