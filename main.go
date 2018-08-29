@@ -7,9 +7,9 @@ import (
 )
 
 func main() {
-	err, status := scp.ScpCli(os.Args)
+	err := scp.ScpCli(os.Args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(status)
+		os.Exit(1)
 	}
 }

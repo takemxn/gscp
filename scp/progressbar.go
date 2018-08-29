@@ -1,6 +1,6 @@
 package scp
 
-import(
+import (
 	"fmt"
 	"io"
 	"os"
@@ -10,17 +10,16 @@ import(
 const DEFAULT_FORMAT = "\r%s   % 3d %%  %d kb %0.2f kb/s %v      "
 
 type ProgressBar struct {
-	Out io.Writer
-	Format string
-	Subject string
+	Out       io.Writer
+	Format    string
+	Subject   string
 	StartTime time.Time
-	Size int64
+	Size      int64
 }
 
 func NewProgressBarTo(subject string, size int64, outPipe io.Writer) ProgressBar {
 	return ProgressBar{outPipe, DEFAULT_FORMAT, subject, time.Now(), size}
 }
-
 
 func NewProgressBar(subject string, size int64) ProgressBar {
 	return NewProgressBarTo(subject, size, os.Stdout)

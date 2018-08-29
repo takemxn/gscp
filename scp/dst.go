@@ -1,21 +1,22 @@
 package scp
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	sshcon "github.com/takemxn/gssh/shared"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
-	sshcon "gssh/shared"
-	"log"
 	"strconv"
 	"strings"
-	"bufio"
 )
-func (scp *SecureCopier) openDstFromRemote(reader io.Reader, writer io.Writer) (err error) {
+
+func (scp *Scp) openDstFromRemote(reader io.Reader, writer io.Writer) (err error) {
 	dstFile := scp.dstFile
-	errPipe := scp.errPipe
-	outPipe := scp.outPipe
+	errPipe := scp.Stderr
+	outPipe := scp.Stdout
 	dstFileInfo, err := os.Stat(dstFile)
 	dstDir := dstFile
 	var useSpecifiedFilename bool
@@ -96,7 +97,7 @@ func (scp *SecureCopier) openDstFromRemote(reader io.Reader, writer io.Writer) (
 					fmt.Fprintf(errPipe, "Received OK \n")
 				}
 			case 'E':
-			//E command: go back out of dir
+				//E command: go back out of dir
 				dstDir = filepath.Dir(dstDir)
 				if scp.IsVerbose {
 					fmt.Fprintf(errPipe, "Received End-Dir\n")
@@ -108,7 +109,7 @@ func (scp *SecureCopier) openDstFromRemote(reader io.Reader, writer io.Writer) (
 					return
 				}
 			case 0xA:
-			//0xA command: end?
+				//0xA command: end?
 				if scp.IsVerbose {
 					fmt.Fprintf(errPipe, "Received All-done\n")
 				}
@@ -149,7 +150,7 @@ func (scp *SecureCopier) openDstFromRemote(reader io.Reader, writer io.Writer) (
 					fmt.Fprintf(errPipe, "Received error message: %s\n", cmdFull[1:])
 					ce <- errors.New(cmdFull[1:])
 					return
-				case 'D','C':
+				case 'D', 'C':
 					mode, err := strconv.ParseInt(parts[0], 8, 32)
 					if err != nil {
 						fmt.Fprintln(errPipe, "Format error: "+err.Error())
@@ -252,7 +253,7 @@ func (scp *SecureCopier) openDstFromRemote(reader io.Reader, writer io.Writer) (
 						}
 						pb.Update(tot)
 						fmt.Fprintln(errPipe) //new line
-					} else { 
+					} else {
 						//D command (directory)
 						thisDstFile := filepath.Join(dstDir, filename)
 						fileMode := os.FileMode(uint32(mode))
@@ -274,18 +275,28 @@ func (scp *SecureCopier) openDstFromRemote(reader io.Reader, writer io.Writer) (
 	}()
 	return
 }
-func (scp *SecureCopier) openDstToRemote() (err error) {
+func (scp *Scp) openDstToRemote(r io.Reader, w io.Writer) (err error) {
 	conn, err := sshcon.Connect2(scp.dstUser, scp.dstHost, scp.Port)
-  if err != nil {
-	  log.Printf("unable to create session: %s", err)
+	if err != nil {
+		log.Printf("unable to create session: %s", err)
 		return err
 	}
-  session, err := conn.NewSession()
+	s, err := conn.NewSession()
 	if err != nil {
 		return err
 	} else if scp.IsVerbose {
-		fmt.Fprintln(scp.errPipe, "Got session")
+		fmt.Fprintln(scp.Stderr, "Got session")
 	}
+	in, err := s.StdinPipe()
+	if err != nil {
+		return err
+	}
+	out, err := s.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	go io.Copy(in, r)
+	go io.Copy(w, out)
 	remoteOpts := "-t"
 	if scp.IsQuiet {
 		remoteOpts += "q"
@@ -293,24 +304,21 @@ func (scp *SecureCopier) openDstToRemote() (err error) {
 	if scp.IsRecursive {
 		remoteOpts += "r"
 	}
-	err = session.Run("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
+	err = s.Start("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
 	if err != nil {
-		fmt.Fprintln(scp.errPipe, "Failed to run remote scp: "+err.Error())
+		fmt.Fprintln(scp.Stderr, "Failed to run remote scp: "+err.Error())
 	}
-	scp.session = session
 	return
 }
-func (scp *SecureCopier) OpenDst() (r *io.PipeReader, w *io.PipeWriter, err error) {
+func (scp *Scp) OpenDst() (r io.ReadCloser, w io.WriteCloser, err error) {
+	r, w = io.Pipe()
 	if scp.dstHost != "" {
-		err := scp.openDstToRemote()
+		err = scp.openDstToRemote(r, w)
 		if err != nil {
 			return nil, nil, err
 		}
-		r, ok := scp.session.StdoutPipe()
-		w, ok := scp.session.StdinPipe()
-	}else{
-		r, w := io.Pipe()
-		err = scp.openDstFromRemote(r, w)
+	} else {
+		err := scp.openDstFromRemote(r, w)
 		if err != nil {
 			return nil, nil, err
 		}
