@@ -7,6 +7,7 @@ import (
 	"github.com/laher/uggo"
 	//	"golang.org/x/crypto/ssh"
 	sshcon "github.com/takemxn/gssh/shared"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
 	"strings"
@@ -15,14 +16,13 @@ import (
 const (
 	VERSION = "0.1.0"
 )
-
-type Session interface {
-	StdoutPipe() (io.Reader, error)
-	StdinPipe() (io.WriteCloser, error)
-	StderrPipe() (io.Reader, error)
-	Start(cmd string) error
-	Wait() error
-	Close() error
+type ReadWriter struct {
+	io.Reader
+	io.WriteCloser
+}
+func NewReadWriter(r io.Reader, w io.WriteCloser) (rw *ReadWriter){
+	rw = &ReadWriter{r, w}
+	return
 }
 type Scp struct {
 	Port              int
@@ -38,6 +38,8 @@ type Scp struct {
 	Stdin io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	ses *ssh.Session
+	ce chan error
 }
 
 func (scp *Scp) Name() string {
@@ -140,33 +142,20 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
-	rd, wd, err := scp.OpenDst()
+	rw, err := scp.OpenDst()
 	if err != nil {
 		return err
 	}
-	defer rd.Close()
-	defer wd.Close()
+	defer rw.Close()
 	for _, v := range scp.args[0 : len(scp.args)-1] {
-		file, host, user, err := parseTarget(v)
+		err := scp.openSrc(v, rw)
 		if err != nil {
-			break
+			return err
 		}
-		src, err := scp.openSrc(file, host, user)
-		if err != nil {
-			break
-		}
-		defer src.Close()
-		ws, err := src.StdinPipe()
-		if err != nil {
-			break
-		}
-		rs, err := src.StdoutPipe()
-		if err != nil {
-			break
-		}
-		go io.Copy(wd, rs)
-		io.Copy(ws, rd)
-		src.Wait()
 	}
-	return
+	rw.Close()
+	if scp.ses != nil {
+		scp.ses.Wait()
+	}
+	return err
 }

@@ -9,20 +9,29 @@ import (
 	"io"
 )
 
-func (scp *Scp) openFrom(file, user, host string) (s Session, err error) {
-	errPipe := scp.Stderr
+func (scp *Scp) openFrom(file, user, host string, rw *ReadWriter) (err error) {
 	conn, err := sshcon.Connect2(user, host, scp.Port)
 	if err != nil {
 		log.Printf("unable to create session: %s", err)
 		return
 	}
-	session, err := conn.NewSession()
+	s, err := conn.NewSession()
 	if err != nil {
 		return
 	} else if scp.IsVerbose {
-		fmt.Fprintln(errPipe, "Got session")
+		log.Println( "Got session")
 	}
-	defer session.Close()
+	defer s.Close()
+	w, err := s.StdinPipe()
+	if err != nil {
+		return
+	}
+	r, err := s.StdoutPipe()
+	if err != nil {
+		return
+	}
+	go io.Copy(w, rw)
+	go io.Copy(rw, r)
 	remoteOpts := "-f"
 	if scp.IsQuiet {
 		remoteOpts += "q"
@@ -31,10 +40,11 @@ func (scp *Scp) openFrom(file, user, host string) (s Session, err error) {
 		remoteOpts += "r"
 	}
 	//TODO should this path (/usr/bin/scp) be configurable?
-	err = session.Run("/usr/bin/scp " + remoteOpts + " " + file)
+	err = s.Start("/usr/bin/scp " + remoteOpts + " " + file)
 	if err != nil {
-		fmt.Fprintln(errPipe, "Failed to run remote scp: "+err.Error())
+		log.Println( "Failed to run remote scp: ",err)
 	}
+	s.Wait()
 	return
 }
 func (scp *Scp) copyLocalToRemote(srcFile string, w io.Writer) (err error) {
@@ -42,7 +52,7 @@ func (scp *Scp) copyLocalToRemote(srcFile string, w io.Writer) (err error) {
 	outPipe := scp.Stdout
 	srcFileInfo, err := os.Stat(srcFile)
 	if err != nil {
-		fmt.Fprintln(errPipe, "Could not stat source file "+srcFile)
+		log.Println( "Could not stat source file "+srcFile)
 		return err
 	}
 	procWriter := w
@@ -50,12 +60,12 @@ func (scp *Scp) copyLocalToRemote(srcFile string, w io.Writer) (err error) {
 		if srcFileInfo.IsDir() {
 			err = scp.processDir(procWriter, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
-				fmt.Fprintln(errPipe, err.Error())
+				log.Println( err.Error())
 			}
 		} else {
 			err = scp.sendFile(procWriter, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
-				fmt.Fprintln(errPipe, err.Error())
+				log.Println( err.Error())
 			}
 		}
 	} else {
@@ -64,7 +74,7 @@ func (scp *Scp) copyLocalToRemote(srcFile string, w io.Writer) (err error) {
 		} else {
 			err = scp.sendFile(procWriter, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
-				fmt.Fprintln(errPipe, err.Error())
+				log.Println( err.Error())
 			}
 		}
 	}
@@ -81,22 +91,6 @@ func (s *src) Start(cmd string) error               { return nil }
 func (s *src) Wait() error               { return nil }
 func (s *src) Close() error                       { return nil }
 
-func (scp *Scp) openSrc(file, host, user string) (s Session, err error) {
-	if host != "" {
-		s, err = scp.openFrom(file, user, host)
-		if err != nil {
-			return
-		}
-	} else {
-		r, w := io.Pipe()
-		err = scp.copyLocalToRemote(file, w)
-		if err != nil {
-			return
-		}
-		s = &src{stdin: w, stdout: r}
-	}
-	return
-}
 func (scp *Scp) processDir(procWriter io.Writer, srcFilePath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
 	err := scp.sendDir(procWriter, srcFilePath, srcFileInfo, errPipe)
 	if err != nil {
@@ -179,13 +173,31 @@ func (scp *Scp) sendFile(procWriter io.Writer, srcPath string, srcFileInfo os.Fi
 
 	err = fileReader.Close()
 	if scp.IsVerbose {
-		fmt.Fprintln(errPipe, "Sent file plus null-byte.")
+		log.Println( "Sent file plus null-byte.")
 	}
 	pb.Update(size)
 	fmt.Fprintln(errPipe)
 
 	if err != nil {
-		fmt.Fprintln(errPipe, err.Error())
+		log.Println( err.Error())
 	}
 	return err
+}
+func (scp *Scp) openSrc(file string, rw *ReadWriter) (err error) {
+	file, host, user, err := parseTarget(file)
+	if err != nil {
+		return
+	}
+	if host != "" {
+		err = scp.openFrom(file, user, host, rw)
+		if err != nil {
+			return
+		}
+	} else {
+		err = scp.copyLocalToRemote(file, rw)
+		if err != nil {
+			return
+		}
+	}
+	return
 }
