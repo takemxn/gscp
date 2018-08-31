@@ -15,10 +15,13 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 	dstFile := scp.dstFile
 	errPipe := scp.Stderr
 	outPipe := scp.Stdout
-	dstFileInfo, err := os.Stat(dstFile)
+	dstFileInfo, e := os.Stat(dstFile)
 	dstDir := dstFile
 	var useSpecifiedFilename bool
-	if err != nil {
+	if e != nil {
+		if !os.IsNotExist(e) {
+			return e
+		}
 		//OK - create file/dir
 		useSpecifiedFilename = true
 	} else if dstFileInfo.IsDir() {
@@ -33,14 +36,13 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 		useSpecifiedFilename = true
 	}
 	go func() {
+		defer func(){
+			sendByte(wd, 0)
+			close(rs)
+		}()
+
 		cw := wd
-		defer func(){sendByte(cw, 0);close(rs)}()
 		r := rd
-		if err != nil {
-			fmt.Println("stdout err: "+err.Error()+" continue anyway")
-			rs <- err
-			return
-		}
 		if scp.IsVerbose {
 			fmt.Println("Sending null byte")
 		}

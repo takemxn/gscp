@@ -48,9 +48,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err err
 	if err != nil {
 		fmt.Println( "Failed to run remote scp: ",err)
 	}
-	fmt.Println("test1")
 	s.Wait()
-	fmt.Println("test2")
 	return
 }
 func (scp *Scp) sendFromLocal(srcFile string, w io.Writer) (err error) {
