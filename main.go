@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"gscp/scp"
+	"github.com/takemxn/gscp/scp"
 	"os"
 )
 

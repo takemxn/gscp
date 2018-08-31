@@ -1,11 +1,11 @@
 package scp
 
 import (
+	"fmt"
 	"bufio"
 	"errors"
 	sshcon "github.com/takemxn/gssh/shared"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,12 +19,8 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 	dstDir := dstFile
 	var useSpecifiedFilename bool
 	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		} else {
-			//OK - create file/dir
-			useSpecifiedFilename = true
-		}
+		//OK - create file/dir
+		useSpecifiedFilename = true
 	} else if dstFileInfo.IsDir() {
 		//ok - use name of srcFile
 		//dstFile = filepath.Join(dstFile, filepath.Base(srcFile))
@@ -37,26 +33,20 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 		useSpecifiedFilename = true
 	}
 	go func() {
-		defer close(rs)
-
 		cw := wd
-		if err != nil {
-			log.Println(err.Error())
-			rs <- err
-			return
-		}
+		defer func(){sendByte(cw, 0);close(rs)}()
 		r := rd
 		if err != nil {
-			log.Println("stdout err: "+err.Error()+" continue anyway")
+			fmt.Println("stdout err: "+err.Error()+" continue anyway")
 			rs <- err
 			return
 		}
 		if scp.IsVerbose {
-			log.Println("Sending null byte")
+			fmt.Println("Sending null byte")
 		}
 		err = sendByte(cw, 0)
 		if err != nil {
-			log.Println("Write error: "+err.Error())
+			fmt.Println("Write error: "+err.Error())
 			rs <- err
 			return
 		}
@@ -66,57 +56,56 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 		more := true
 		first := true
 		for more {
-
 			cmdArr := make([]byte, 1)
 			n, err := r.Read(cmdArr)
 			if err != nil {
 				if err == io.EOF {
 					//no problem.
 					if scp.IsVerbose {
-						log.Println("Received EOF from remote server")
+						fmt.Println("Received EOF from remote server")
 					}
 				} else {
-					log.Println("Error reading standard input:", err)
+					fmt.Println("Error reading standard input:", err)
 					rs <- err
 				}
 				return
 			}
 			if n < 1 {
-				log.Println("Error reading next byte from standard input")
+				fmt.Println("Error reading next byte from standard input")
 				rs <- errors.New("Error reading next byte from standard input")
 				return
 			}
 			cmd := cmdArr[0]
 			if scp.IsVerbose {
-				log.Printf("Sink: %s (%v)\n", string(cmd), cmd)
+				fmt.Printf("Sink: %s (%v)\n", string(cmd), cmd)
 			}
 			switch cmd {
 			case 0x0:
 				//continue
 				if scp.IsVerbose {
-					log.Printf("Received OK \n")
+					fmt.Printf("Received OK \n")
 				}
 			case 'E':
 				//E command: go back out of dir
 				dstDir = filepath.Dir(dstDir)
 				if scp.IsVerbose {
-					log.Printf("Received End-Dir\n")
+					fmt.Printf("Received End-Dir\n")
 				}
 				err = sendByte(cw, 0)
 				if err != nil {
-					log.Println("Write error: %s", err.Error())
+					fmt.Println("Write error: %s", err.Error())
 					rs <- err
 					return
 				}
 			case 0xA:
 				//0xA command: end?
 				if scp.IsVerbose {
-					log.Printf("Received All-done\n")
+					fmt.Printf("Received All-done\n")
 				}
 
 				err = sendByte(cw, 0)
 				if err != nil {
-					log.Println("Write error: "+err.Error())
+					fmt.Println("Write error: "+err.Error())
 					rs <- err
 					return
 				}
@@ -129,10 +118,10 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 					if err == io.EOF {
 						//no problem.
 						if scp.IsVerbose {
-							log.Println("Received EOF from remote server")
+							fmt.Println("Received EOF from remote server")
 						}
 					} else {
-						log.Println("Error reading standard input:", err)
+						fmt.Println("Error reading standard input:", err)
 						rs <- err
 					}
 					return
@@ -140,33 +129,33 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 				//first line
 				cmdFull := scanner.Text()
 				if scp.IsVerbose {
-					log.Printf("Details: %v\n", cmdFull)
+					fmt.Printf("Details: %v\n", cmdFull)
 				}
 				//remainder, split by spaces
 				parts := strings.SplitN(cmdFull, " ", 3)
 
 				switch cmd {
 				case 0x1:
-					log.Printf("Received error message: %s\n", cmdFull[1:])
+					fmt.Printf("Received error message: %s\n", cmdFull[1:])
 					rs <- errors.New(cmdFull[1:])
 					return
 				case 'D', 'C':
 					mode, err := strconv.ParseInt(parts[0], 8, 32)
 					if err != nil {
-						log.Println("Format error: "+err.Error())
+						fmt.Println("Format error: "+err.Error())
 						rs <- err
 						return
 					}
 					sizeUint, err := strconv.ParseUint(parts[1], 10, 64)
 					size := int64(sizeUint)
 					if err != nil {
-						log.Println("Format error: "+err.Error())
+						fmt.Println("Format error: "+err.Error())
 						rs <- err
 						return
 					}
 					rcvFilename := parts[2]
 					if scp.IsVerbose {
-						log.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, rcvFilename)
+						fmt.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, rcvFilename)
 					}
 					var filename string
 					//use the specified filename from the destination (only for top-level item)
@@ -177,7 +166,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 					}
 					err = sendByte(cw, 0)
 					if err != nil {
-						log.Println("Send error: "+err.Error())
+						fmt.Println("Send error: "+err.Error())
 						rs <- err
 						return
 					}
@@ -185,7 +174,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 						//C command - file
 						thisDstFile := filepath.Join(dstDir, filename)
 						if scp.IsVerbose {
-							log.Println("Creating destination file: ", thisDstFile)
+							fmt.Fprintln(scp.Stderr, "Creating destination file: ", thisDstFile)
 						}
 						tot := int64(0)
 						pb := NewProgressBarTo(filename, size, outPipe)
@@ -194,8 +183,8 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 						//TODO: mode here
 						fw, err := os.Create(thisDstFile)
 						if err != nil {
+							fmt.Fprintln(scp.Stderr, "File creation error: ",err)
 							rs <- err
-							log.Println("File creation error: "+err.Error())
 							return
 						}
 						defer fw.Close()
@@ -210,7 +199,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 							b := make([]byte, bufferSize)
 							n, err = r.Read(b)
 							if err != nil {
-								log.Println("Read error: "+err.Error())
+								fmt.Fprintln(scp.Stderr, "Read error: ",err)
 								rs <- err
 								return
 							}
@@ -218,7 +207,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 							//write to file
 							_, err = fw.Write(b[:n])
 							if err != nil {
-								log.Println("Write error: "+err.Error())
+								fmt.Println("Write error: "+err.Error())
 								rs <- err
 								return
 							}
@@ -231,7 +220,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 						//close file writer & check error
 						err = fw.Close()
 						if err != nil {
-							log.Println(err.Error())
+							fmt.Println(err.Error())
 							rs <- err
 							return
 						}
@@ -239,7 +228,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 						nb := make([]byte, 1)
 						_, err = r.Read(nb)
 						if err != nil {
-							log.Println(err.Error())
+							fmt.Println(err.Error())
 							rs <- err
 							return
 						}
@@ -247,26 +236,26 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 						//send null-byte back
 						_, err = cw.Write([]byte{0})
 						if err != nil {
-							log.Println("Send null-byte error: "+err.Error())
+							fmt.Println("Send null-byte error: "+err.Error())
 							rs <- err
 							return
 						}
 						pb.Update(tot)
-						log.Println(errPipe) //new line
+						fmt.Println(errPipe) //new line
 					} else {
 						//D command (directory)
 						thisDstFile := filepath.Join(dstDir, filename)
 						fileMode := os.FileMode(uint32(mode))
 						err = os.MkdirAll(thisDstFile, fileMode)
 						if err != nil {
-							log.Println("Mkdir error: "+err.Error())
+							fmt.Println("Mkdir error: "+err.Error())
 							rs <- err
 							return
 						}
 						dstDir = thisDstFile
 					}
 				default:
-					log.Printf("Command '%v' NOT implemented\n", cmd)
+					fmt.Printf("Command '%v' NOT implemented\n", cmd)
 					return
 				}
 			}
@@ -278,14 +267,14 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 func (scp *Scp) openRemoteReceiver(rs chan error) (r io.Reader, w io.WriteCloser, err error) {
 	conn, err := sshcon.Connect2(scp.dstUser, scp.dstHost, scp.Port)
 	if err != nil {
-		log.Printf("unable to create session: %s", err)
+		fmt.Printf("unable to create session: %s", err)
 		return nil, nil, err
 	}
 	s, err := conn.NewSession()
 	if err != nil {
 		return nil, nil, err
 	} else if scp.IsVerbose {
-		log.Println(scp.Stderr, "Got session")
+		fmt.Fprintln(scp.Stderr, "Got receiver session")
 	}
 	w, err = s.StdinPipe()
 	if err != nil {
@@ -305,7 +294,7 @@ func (scp *Scp) openRemoteReceiver(rs chan error) (r io.Reader, w io.WriteCloser
 	go func(){
 		err = s.Start("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
 		if err != nil {
-			log.Println(scp.Stderr, "Failed to run remote scp: "+err.Error())
+			fmt.Fprintln(scp.Stderr, "Failed to run remote scp: "+err.Error())
 			rs <- err
 		}
 		rs <- s.Wait()

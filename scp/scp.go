@@ -142,7 +142,7 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
-	rs := make(chan error)
+	rs := make(chan error, 1)
 	rw, err := scp.openReceiver(rs)
 	if err != nil {
 		return err
@@ -155,6 +155,6 @@ func (scp *Scp) Exec() (err error) {
 		}
 	}
 	rw.Close()
-	err = <-rs
+	err =<- rs
 	return err
 }
