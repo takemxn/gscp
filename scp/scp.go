@@ -156,6 +156,8 @@ func (scp *Scp) Exec() (err error) {
 	rw.Close()
 	if scp.ses != nil {
 		scp.ses.Wait()
+	}else{
+		<- scp.ce
 	}
 	return err
 }

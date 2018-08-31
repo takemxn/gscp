@@ -39,6 +39,7 @@ func (scp *Scp) openDstFromRemote(rd io.Reader, wd io.Writer) (err error) {
 	ce := make(chan error)
 	scp.ce = ce
 	go func() {
+		defer close(ce)
 		cw := wd
 		if err != nil {
 			log.Println(err.Error())
