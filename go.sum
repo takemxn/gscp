@@ -1,0 +1,10 @@
+github.com/go-ini/ini v1.38.2 h1:6Hl/z3p3iFkA0dlDfzYxuFuUGD+kaweypF6btsR2/Q4=
+github.com/go-ini/ini v1.38.2/go.mod h1:ByCAeIL28uOIIG0E3PJtZPDL8WnHpFKFOtgjp+3Ies8=
+github.com/laher/uggo v0.0.0-20140418102112-0ad25fe11c5b h1:hiAgMroreX8L9Gm2SsTdv9ApADQPShh9D3Di9xpp2Kg=
+github.com/laher/uggo v0.0.0-20140418102112-0ad25fe11c5b/go.mod h1:WytauZxw3kbZhQVPJN2INZlGCNCKWn3iy4VqJvNo2pI=
+github.com/takemxn/gssh v0.0.0-20180827085959-edc23b9c1ff9 h1:IJszBvwmKYEgOQxZEdjWOVMCuYM7eTAM1y1uxdeKPXg=
+github.com/takemxn/gssh v0.0.0-20180827085959-edc23b9c1ff9/go.mod h1:CVXNFWfl11EYJzUD9p6ABz4FJUYq2n20zB5vO7YnBJM=
+golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac h1:7d7lG9fHOLdL6jZPtnV4LpI41SbohIJ1Atq7U991dMg=
+golang.org/x/crypto v0.0.0-20180820150726-614d502a4dac/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
+golang.org/x/sys v0.0.0-20180828065106-d99a578cf41b h1:cmOZLU2i7CLArKNViO+ZCQ47wqYFyKEIpbGWp+b6Uoc=
+golang.org/x/sys v0.0.0-20180828065106-d99a578cf41b/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
