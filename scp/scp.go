@@ -142,22 +142,19 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
-	rw, err := scp.OpenDst()
+	rs := make(chan error)
+	rw, err := scp.openReceiver(rs)
 	if err != nil {
 		return err
 	}
 	defer rw.Close()
 	for _, v := range scp.args[0 : len(scp.args)-1] {
-		err := scp.openSrc(v, rw)
+		err := scp.sendFrom(v, rw)
 		if err != nil {
 			return err
 		}
 	}
 	rw.Close()
-	if scp.ses != nil {
-		scp.ses.Wait()
-	}else{
-		<- scp.ce
-	}
+	err = <-rs
 	return err
 }
