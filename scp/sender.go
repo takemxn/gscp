@@ -84,17 +84,6 @@ func (scp *Scp) sendFromLocal(srcFile string, w io.Writer) (err error) {
 	}
 	return
 }
-type src struct {
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-}
-func (s *src) StdoutPipe() (io.Reader, error)     { return s.stdout, nil }
-func (s *src) StdinPipe() (io.WriteCloser, error) { return s.stdin, nil }
-func (s *src) StderrPipe() (io.Reader, error)     { return s.stdout, nil }
-func (s *src) Start(cmd string) error               { return nil }
-func (s *src) Wait() error               { return nil }
-func (s *src) Close() error                       { return nil }
-
 func (scp *Scp) processDir(procWriter io.Writer, srcFilePath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
 	err := scp.sendDir(procWriter, srcFilePath, srcFileInfo, errPipe)
 	if err != nil {
