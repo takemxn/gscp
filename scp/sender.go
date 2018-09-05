@@ -3,13 +3,13 @@ package scp
 import (
 	"fmt"
 	"path/filepath"
-	sshcon "github.com/takemxn/gssh/shared"
+	com "github.com/takemxn/gssh/shared"
 	"os"
 	"io"
 )
 
 func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err error) {
-	conn, err := sshcon.Connect2(user, host, scp.Port)
+	conn, err := com.Connect2(user, host, scp.Port)
 	if err != nil {
 		fmt.Printf("unable to create session: %s", err)
 		return

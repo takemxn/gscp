@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"bufio"
 	"errors"
-	sshcon "github.com/takemxn/gssh/shared"
+	com "github.com/takemxn/gssh/shared"
 	"io"
 	"os"
 	"path/filepath"
@@ -267,7 +267,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 	return
 }
 func (scp *Scp) openRemoteReceiver(rs chan error) (r io.Reader, w io.WriteCloser, err error) {
-	conn, err := sshcon.Connect2(scp.dstUser, scp.dstHost, scp.Port)
+	conn, err := com.Connect2(scp.dstUser, scp.dstHost, scp.Port)
 	if err != nil {
 		fmt.Printf("unable to create session: %s", err)
 		return nil, nil, err
