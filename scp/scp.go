@@ -6,7 +6,6 @@ import (
 	"errors"
 	"github.com/laher/uggo"
 	//	"golang.org/x/crypto/ssh"
-	com "github.com/takemxn/gssh/shared"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
@@ -40,6 +39,8 @@ type Scp struct {
 	Stderr io.Writer
 	ses *ssh.Session
 	ce chan error
+	Password string
+	ConfigPath string
 }
 
 func (scp *Scp) Name() string {
@@ -56,8 +57,8 @@ func (scp *Scp) ParseFlags(call []string, errPipe io.Writer) error {
 	flagSet.BoolVar(&scp.IsRemoteFrom, "f", false, "Remote 'from' mode - not currently supported")
 	flagSet.BoolVar(&scp.IsQuiet, "q", false, "Quiet mode: disables the progress meter as well as warning and diagnostic messages")
 	flagSet.BoolVar(&scp.IsVerbose, "v", false, "Verbose mode - output differs from normal scp")
-	flagSet.StringVar(&com.Password, "p", "", "password")
-	flagSet.StringVar(&com.ConfigPath, "F", "", "password file path")
+	flagSet.StringVar(&scp.Password, "p", "", "password")
+	flagSet.StringVar(&scp.ConfigPath, "F", "", "password file path")
 	err, _ := flagSet.ParsePlus(call[1:])
 	if err != nil {
 		return err
