@@ -39,6 +39,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rs chan error) (er
 	}
 	go func() {
 		defer func(){
+			sendByte(cw, 0)
 			close(rs)
 		}()
 		r := rd
