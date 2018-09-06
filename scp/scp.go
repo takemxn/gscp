@@ -152,26 +152,26 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
-	errch := make(chan error, 1)
-	rw, err := scp.openReceiver(errch)
+	rCh := make(chan error, 1)
+	rw, err := scp.openReceiver(rCh)
 	if err != nil {
 		return err
 	}
 	defer rw.Close()
-	ech := make(chan error, 1)
+	sCh := make(chan error, 1)
 	go func(){
 		for _, v := range scp.args[0 : len(scp.args)-1] {
 			err := scp.sendFrom(v, rw)
 			if err != nil {
-				ech <- err
+				sCh <- err
 				break
 			}
 		}
 		rw.Close()
 	}()
 	select {
-	case err = <- errch:
-	case err = <- ech:
+	case err = <- rCh:
+	case err = <- sCh:
 	}
 	return err
 }
