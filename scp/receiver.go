@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 )
-func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (err error) {
+func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rs chan error) (err error) {
 	dstFile := scp.dstFile
 	errPipe := scp.Stderr
 	outPipe := scp.Stdout
@@ -31,17 +31,16 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, wd io.Writer, rs chan error) (er
 		//MUST use received filename instead
 		//TODO should this be from USR?
 		useSpecifiedFilename = false
-	} else {
+	} else if dstFileInfo.Mode().IsRegular() {
 		dstDir = filepath.Dir(dstFile)
 		useSpecifiedFilename = true
+	}else{
+		return fmt.Errorf("spcified file was not dir or regular file!!")
 	}
 	go func() {
 		defer func(){
-			sendByte(wd, 0)
 			close(rs)
 		}()
-
-		cw := wd
 		r := rd
 		if scp.IsVerbose {
 			fmt.Println("Sending null byte")

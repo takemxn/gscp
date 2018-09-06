@@ -9,7 +9,7 @@ import (
 )
 
 func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err error) {
-	ci := com.NewConnectInfo(scp.dstUser, scp.dstHost, scp.Port, scp.Password)
+	ci := com.NewConnectInfo(user, host, scp.Port, scp.Password)
 	conn, err := ci.Connect()
 	if err != nil {
 		fmt.Printf("unable to create session: %s", err)
