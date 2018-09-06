@@ -18,12 +18,15 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rs chan error) (er
 	dstFileInfo, e := os.Stat(dstFile)
 	dstDir := dstFile
 	var useSpecifiedFilename bool
+	var dstFileNotExist bool
 	if e != nil {
 		if !os.IsNotExist(e) {
 			return e
 		}
 		//OK - create file/dir
 		useSpecifiedFilename = true
+		dstFileNotExist = true
+		dstFile = ""
 	} else if dstFileInfo.IsDir() {
 		//ok - use name of srcFile
 		//dstFile = filepath.Join(dstFile, filepath.Base(srcFile))
@@ -56,7 +59,6 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rs chan error) (er
 		//use a scanner for processing individual commands, but not files themselves
 		scanner := bufio.NewScanner(r)
 		more := true
-		first := true
 		for more {
 			cmdArr := make([]byte, 1)
 			n, err := r.Read(cmdArr)
@@ -161,14 +163,17 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rs chan error) (er
 					}
 					var filename string
 					//use the specified filename from the destination (only for top-level item)
-					if useSpecifiedFilename && first {
-						filename = filepath.Base(dstFile)
+					if useSpecifiedFilename {
+						if dstFileNotExist {
+							filename = dstFile
+						}else{
+							filename = filepath.Base(dstFile)
+						}
 					} else {
 						filename = rcvFilename
 					}
 					err = sendByte(cw, 0)
 					if err != nil {
-						fmt.Println("Send error: "+err.Error())
 						rs <- err
 						return
 					}
@@ -179,13 +184,12 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rs chan error) (er
 							fmt.Fprintln(scp.Stderr, "Creating destination file: ", thisDstFile)
 						}
 						tot := int64(0)
-						pb := NewProgressBarTo(filename, size, outPipe)
+						pb := NewProgressBarTo(rcvFilename, size, outPipe)
 						pb.Update(0)
 
 						//TODO: mode here
 						fw, err := os.Create(thisDstFile)
 						if err != nil {
-							fmt.Fprintln(scp.Stderr, "File creation error: ",err)
 							rs <- err
 							return
 						}
@@ -261,7 +265,6 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rs chan error) (er
 					return
 				}
 			}
-			first = false
 		}
 	}()
 	return
