@@ -5,7 +5,7 @@ package scp
 import (
 	"errors"
 	"github.com/laher/uggo"
-	//	"golang.org/x/crypto/ssh"
+	com "github.com/takemxn/gssh/common"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
@@ -41,6 +41,7 @@ type Scp struct {
 	ce chan error
 	Password string
 	ConfigPath string
+	config *com.Config
 }
 
 func (scp *Scp) Name() string {
@@ -118,6 +119,14 @@ func ScpCli(args []string) error {
 	if err != nil {
 		return err
 	}
+	if scp.Password == "" {
+		config := com.NewConfig(scp.ConfigPath)
+		err = config.ReadPasswords()
+		if err != nil {
+			return err
+		}
+		scp.config = config
+	}
 	err = scp.Exec()
 	return err
 }
@@ -143,26 +152,26 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
-	rs := make(chan error, 1)
-	rw, err := scp.openReceiver(rs)
+	errch := make(chan error, 1)
+	rw, err := scp.openReceiver(errch)
 	if err != nil {
 		return err
 	}
 	defer rw.Close()
-	ss := make(chan error, 1)
+	ech := make(chan error, 1)
 	go func(){
 		for _, v := range scp.args[0 : len(scp.args)-1] {
 			err := scp.sendFrom(v, rw)
 			if err != nil {
-				ss <- err
+				ech <- err
 				break
 			}
 		}
 		rw.Close()
 	}()
 	select {
-	case err = <- rs:
-	case err = <- ss:
+	case err = <- errch:
+	case err = <- ech:
 	}
 	return err
 }
