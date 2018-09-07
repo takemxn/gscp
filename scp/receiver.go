@@ -42,7 +42,6 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 	}
 	go func() {
 		defer func(){
-			sendByte(cw, 0)
 			close(rCh)
 		}()
 		r := rd
@@ -57,8 +56,78 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		//defer r.Close()
 		//use a scanner for processing individual commands, but not files themselves
 		scanner := bufio.NewScanner(r)
-		more := true
 		first := false
+		var atime, mtime uint64
+		for scanner.Scan() {
+			cmdFull := scanner.Text()
+			parts := strings.Split(cmdFull, " ")
+			if len(parts) == 0 {
+				fmt.Printf("Received OK \n")
+				continue
+			}
+			atime = 0
+			mtime = 0
+			cmd := parts[0][0:1]
+			switch cmd {
+			case 0x0:
+				//continue
+				if scp.IsVerbose {
+					fmt.Printf("Received OK \n")
+				}
+			case 'E':
+				//E command: go back out of dir
+				dstDir = filepath.Dir(dstDir)
+				if scp.IsVerbose {
+					fmt.Printf("Received End-Dir\n")
+				}
+				err = sendByte(cw, 0)
+				if err != nil {
+					fmt.Println("Write error: %s", err.Error())
+					rCh <- err
+					return
+				}
+			case 0xA:
+				//0xA command: end?
+				if scp.IsVerbose {
+					fmt.Printf("Received All-done\n")
+				}
+				err = sendByte(cw, 0)
+				if err != nil {
+					rCh <- err
+					return
+				}
+				return
+			case 'D':
+				mode, size, rcvDirname, err := parseCmd(parts)
+				if err != nil {
+					rCh <- err
+					return
+				}
+			case 'C':
+				mode, size, rcvFilename, err := parseCmd(parts)
+				if err != nil {
+					rCh <- err
+					return
+				}
+			case 'T':
+				var t uint
+				t, err = strconv.ParseUint(parts[0][0:1], 10, 64)
+				if err != nil {
+					rCh <- err
+					return
+				}
+				atime := int64(t)
+				t, err = strconv.ParseUint(parts[2], 10, 64)
+				if err != nil {
+					rCh <- err
+					return
+				}
+				mtime := int64(t)
+			default :
+				rCh <- fmt.Errorf("Command '%v' NOT implemented\n", cmd)
+				return
+			}
+		}
 		for more {
 			cmdArr := make([]byte, 1)
 			n, err := r.Read(cmdArr)
@@ -321,4 +390,19 @@ func (scp *Scp) openReceiver(rCh chan error) (rw *ReadWriter, err error) {
 		rw = NewReadWriter(r2, w)
 	}
 	return
+}
+func parseCmd(cmdStr []string) (mode int, size int64, filename string, err error){
+	mode, err := strconv.ParseInt(cmdStr[0][1:0], 8, 32)
+	if err != nil {
+		return
+	}
+	sizeUint, err := strconv.ParseUint(cmdStr[1], 10, 64)
+	size = int64(sizeUint)
+	if err != nil {
+		return
+	}
+	filename := cmdStr[2]
+	if scp.IsVerbose {
+		fmt.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, filename)
+	}
 }

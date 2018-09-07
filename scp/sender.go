@@ -41,7 +41,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err err
 	go io.Copy(w, rw)
 	go io.Copy(rw, r)
 	go io.Copy(scp.Stderr, e)
-	remoteOpts := "-f"
+	remoteOpts := "-pf"
 	if scp.IsQuiet {
 		remoteOpts += "q"
 	}
