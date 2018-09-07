@@ -10,21 +10,27 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
+type FileSet struct{
+	ftype string
+	mode int64
+	size int64
+	atime time.Time
+	mtime time.Time
+	filename string
+}
 func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (err error) {
 	dstFile := scp.dstFile
 	errPipe := scp.Stderr
-	outPipe := scp.Stdout
 	dstFileInfo, e := os.Stat(dstFile)
 	dstDir := dstFile
-	var useSpecifiedFilename bool
 	var dstFileNotExist bool
 	if e != nil {
 		if !os.IsNotExist(e) {
 			return e
 		}
 		//OK - create file/dir
-		useSpecifiedFilename = true
 		dstFileNotExist = true
 		dstFile = ""
 	} else if dstFileInfo.IsDir() {
@@ -33,10 +39,8 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		dstDir = dstFile
 		//MUST use received filename instead
 		//TODO should this be from USR?
-		useSpecifiedFilename = false
 	} else if dstFileInfo.Mode().IsRegular() {
 		dstDir = filepath.Dir(dstFile)
-		useSpecifiedFilename = true
 	}else{
 		return errors.New("spcified file was not dir or regular file!!")
 	}
@@ -55,9 +59,9 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		}
 		//defer r.Close()
 		//use a scanner for processing individual commands, but not files themselves
-		scanner := bufio.NewScanner(r)
+		fs := new(FileSet)
 		first := false
-		var atime, mtime uint64
+		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			cmdFull := scanner.Text()
 			parts := strings.Split(cmdFull, " ")
@@ -65,9 +69,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 				fmt.Printf("Received OK \n")
 				continue
 			}
-			atime = 0
-			mtime = 0
-			cmd := parts[0][0:1]
+			cmd := []byte(cmdFull)[0]
 			switch cmd {
 			case 0x0:
 				//continue
@@ -98,69 +100,48 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 				}
 				return
 			case 'D':
-				mode, size, rcvDirname, err := parseCmd(parts)
+				fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
 				if err != nil {
+					rCh <- err
+					return
+				}
+				if !scp.IsRecursive && first {
+					rCh <- fmt.Errorf("%q/%q is not aregular file", dstDir, fs.filename)
+					return
+				}
+				fileMode := os.FileMode(uint32(fs.mode))
+				if dstFileNotExist && first {
+					err = os.Mkdir(dstDir, fileMode)
+					if err != nil {
+						rCh <- err
+						return
+					}
+				}
+				first = false
+				//D command (directory)
+				thisDstFile := filepath.Join(dstDir, fs.filename)
+				err = os.MkdirAll(thisDstFile, fileMode)
+				if err != nil {
+					rCh <- err
+					return
+				}
+				dstDir = thisDstFile
+				err = sendByte(cw, 0)
+				if err != nil {
+					fmt.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
 			case 'C':
-				mode, size, rcvFilename, err := parseCmd(parts)
+				fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
 				if err != nil {
 					rCh <- err
 					return
 				}
-			case 'T':
-				var t uint
-				t, err = strconv.ParseUint(parts[0][0:1], 10, 64)
+				err = scp.receiveFile(rd, cw, dstDir, fs, errPipe)
 				if err != nil {
 					rCh <- err
 					return
-				}
-				atime := int64(t)
-				t, err = strconv.ParseUint(parts[2], 10, 64)
-				if err != nil {
-					rCh <- err
-					return
-				}
-				mtime := int64(t)
-			default :
-				rCh <- fmt.Errorf("Command '%v' NOT implemented\n", cmd)
-				return
-			}
-		}
-		for more {
-			cmdArr := make([]byte, 1)
-			n, err := r.Read(cmdArr)
-			if err != nil {
-				if err == io.EOF {
-					//no problem.
-					if scp.IsVerbose {
-						fmt.Println("Received EOF from remote server")
-					}
-				} else {
-					rCh <- err
-				}
-				return
-			}
-			if n < 1 {
-				rCh <- errors.New("Error reading next byte from standard input")
-				return
-			}
-			cmd := cmdArr[0]
-			if scp.IsVerbose {
-				fmt.Printf("Sink: %s (%v)\n", string(cmd), cmd)
-			}
-			switch cmd {
-			case 0x0:
-				//continue
-				if scp.IsVerbose {
-					fmt.Printf("Received OK \n")
-				}
-			case 'E':
-				//E command: go back out of dir
-				dstDir = filepath.Dir(dstDir)
-				if scp.IsVerbose {
-					fmt.Printf("Received End-Dir\n")
 				}
 				err = sendByte(cw, 0)
 				if err != nil {
@@ -168,165 +149,30 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 					rCh <- err
 					return
 				}
-			case 0xA:
-				//0xA command: end?
-				if scp.IsVerbose {
-					fmt.Printf("Received All-done\n")
-				}
-
-				err = sendByte(cw, 0)
+			case 'T':
+				// access time
+				t, err := strconv.ParseUint(parts[0][0:1], 10, 64)
 				if err != nil {
 					rCh <- err
 					return
 				}
-
-				return
-			default:
-				scanner.Scan()
-				err = scanner.Err()
+				fs.atime = time.Unix(int64(t), 0)
+				// modification time
+				t, err = strconv.ParseUint(parts[2], 10, 64)
 				if err != nil {
-					if err == io.EOF {
-						//no problem.
-						if scp.IsVerbose {
-							fmt.Println("Received EOF from remote server")
-						}
-					} else {
-						rCh <- err
-					}
+					rCh <- err
 					return
 				}
-				//first line
-				cmdFull := scanner.Text()
-				if scp.IsVerbose {
-					fmt.Printf("Details: %v\n", cmdFull)
-				}
-				//remainder, split by spaces
-				parts := strings.SplitN(cmdFull, " ", 3)
-
-				switch cmd {
-				case 0x1:
-					rCh <- errors.New(cmdFull[1:])
-					return
-				case 'D', 'C':
-					mode, err := strconv.ParseInt(parts[0], 8, 32)
-					if err != nil {
-						rCh <- err
-						return
-					}
-					sizeUint, err := strconv.ParseUint(parts[1], 10, 64)
-					size := int64(sizeUint)
-					if err != nil {
-						rCh <- err
-						return
-					}
-					rcvFilename := parts[2]
-					if scp.IsVerbose {
-						fmt.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, rcvFilename)
-					}
-					var filename string
-					//use the specified filename from the destination (only for top-level item)
-					if dstFileNotExist && scp.IsRecursive && first{
-						err = os.Mkdir(dstFile, fileMode)
-						if err != nil {
-							rCh <- err
-							return
-						}
-					}
-					if useSpecifiedFilename {
-						if dstFileNotExist {
-							filename = dstFile
-						}else{
-							filename = filepath.Base(dstFile)
-						}
-					} else {
-						filename = rcvFilename
-					}
-					err = sendByte(cw, 0)
-					if err != nil {
-						rCh <- err
-						return
-					}
-					if cmd == 'C' {
-						//C command - file
-						thisDstFile := filepath.Join(dstDir, filename)
-						if scp.IsVerbose {
-							fmt.Fprintln(scp.Stderr, "Creating destination file: ", thisDstFile)
-						}
-						tot := int64(0)
-						pb := NewProgressBarTo(rcvFilename, size, outPipe)
-						pb.Update(0)
-
-						//TODO: mode here
-						fw, err := os.Create(thisDstFile)
-						if err != nil {
-							rCh <- err
-							return
-						}
-						defer fw.Close()
-
-						//buffered by 4096 bytes
-						bufferSize := int64(4096)
-						lastPercent := int64(0)
-						for tot < size {
-							if bufferSize > size-tot {
-								bufferSize = size - tot
-							}
-							b := make([]byte, bufferSize)
-							n, err = r.Read(b)
-							if err != nil {
-								rCh <- err
-								return
-							}
-							tot += int64(n)
-							//write to file
-							_, err = fw.Write(b[:n])
-							if err != nil {
-								rCh <- err
-								return
-							}
-							percent := (100 * tot) / size
-							if percent > lastPercent {
-								pb.Update(tot)
-							}
-							lastPercent = percent
-						}
-						//close file writer & check error
-						err = fw.Close()
-						if err != nil {
-							rCh <- err
-							return
-						}
-						//get next byte from channel reader
-						nb := make([]byte, 1)
-						_, err = r.Read(nb)
-						if err != nil {
-							rCh <- err
-							return
-						}
-						//TODO check value received in nb
-						//send null-byte back
-						_, err = cw.Write([]byte{0})
-						if err != nil {
-							rCh <- err
-							return
-						}
-						pb.Update(tot)
-						fmt.Println(errPipe) //new line
-					} else {
-						//D command (directory)
-						thisDstFile := filepath.Join(dstDir, filename)
-						fileMode := os.FileMode(uint32(mode))
-						err = os.MkdirAll(thisDstFile, fileMode)
-						if err != nil {
-							rCh <- err
-							return
-						}
-						dstDir = thisDstFile
-					}
-				default:
-					rCh <- fmt.Errorf("Command '%v' NOT implemented\n", cmd)
+				fs.mtime = time.Unix(int64(t), 0)
+				err = sendByte(cw, 0)
+				if err != nil {
+					fmt.Println("Write error: %s", err.Error())
+					rCh <- err
 					return
 				}
+			default :
+				rCh <- fmt.Errorf("Command '%v' NOT implemented\n", cmd)
+				return
 			}
 		}
 	}()
@@ -391,8 +237,8 @@ func (scp *Scp) openReceiver(rCh chan error) (rw *ReadWriter, err error) {
 	}
 	return
 }
-func parseCmd(cmdStr []string) (mode int, size int64, filename string, err error){
-	mode, err := strconv.ParseInt(cmdStr[0][1:0], 8, 32)
+func (scp *Scp)parseCmd(cmdStr []string) (mode int64, size int64, filename string, err error){
+	mode, err = strconv.ParseInt(cmdStr[0][0:1], 8, 32)
 	if err != nil {
 		return
 	}
@@ -401,8 +247,71 @@ func parseCmd(cmdStr []string) (mode int, size int64, filename string, err error
 	if err != nil {
 		return
 	}
-	filename := cmdStr[2]
+	filename = cmdStr[2]
 	if scp.IsVerbose {
 		fmt.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, filename)
 	}
+	return
+}
+func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileSet, outPipe io.Writer) (err error){
+	//C command - file
+	thisDstFile := filepath.Join(dstDir, fs.filename)
+	if scp.IsVerbose {
+		fmt.Fprintln(scp.Stderr, "Creating destination file: ", thisDstFile)
+	}
+	tot := int64(0)
+	pb := NewProgressBarTo(fs.filename, fs.size, outPipe)
+	pb.Update(0)
+
+	//TODO: mode here
+	fw, err := os.Create(thisDstFile)
+	if err != nil {
+		return
+	}
+	defer fw.Close()
+
+	//buffered by 4096 bytes
+	bufferSize := int64(4096)
+	lastPercent := int64(0)
+	for tot < fs.size {
+		if bufferSize > fs.size-tot {
+			bufferSize = fs.size - tot
+		}
+		b := make([]byte, bufferSize)
+		n, err := rd.Read(b)
+		if err != nil {
+			return err
+		}
+		tot += int64(n)
+		//write to file
+		_, err = fw.Write(b[:n])
+		if err != nil {
+			return err
+		}
+		percent := (100 * tot) / fs.size
+		if percent > lastPercent {
+			pb.Update(tot)
+		}
+		lastPercent = percent
+	}
+	//close file writer & check error
+	err = fw.Close()
+	if err != nil {
+		return
+	}
+	//get next byte from channel reader
+	nb := make([]byte, 1)
+	_, err = rd.Read(nb)
+	if err != nil {
+		return
+	}
+	//TODO check value received in nb
+	//send null-byte back
+	_, err = cw.Write([]byte{0})
+	if err != nil {
+		return
+	}
+	pb.Update(tot)
+	fmt.Println(outPipe) //new line
+	return
 }
