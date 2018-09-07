@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"fmt"
 )
 
 const (
@@ -173,4 +174,10 @@ func (scp *Scp) Exec() (err error) {
 	case err = <- sCh:
 	}
 	return err
+}
+func (scp *Scp) Printf(format string, args ...interface{}){
+	fmt.Fprintf(scp.Stderr, format, args)
+}
+func (scp *Scp) Println(args ...string){
+	fmt.Fprintln(scp.Stderr, args)
 }

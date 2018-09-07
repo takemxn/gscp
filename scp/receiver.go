@@ -50,7 +50,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		}()
 		r := rd
 		if scp.IsVerbose {
-			fmt.Println("Sending null byte")
+			scp.Println("Sending null byte")
 		}
 		err = sendByte(cw, 0)
 		if err != nil {
@@ -66,32 +66,35 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 			cmdFull := scanner.Text()
 			parts := strings.Split(cmdFull, " ")
 			if len(parts) == 0 {
-				fmt.Printf("Received OK \n")
+				scp.Printf("Received OK \n")
 				continue
 			}
 			cmd := []byte(cmdFull)[0]
+			if scp.IsVerbose {
+				scp.Printf("cmd : [%v]\n", cmd)
+			}
 			switch cmd {
 			case 0x0:
 				//continue
 				if scp.IsVerbose {
-					fmt.Printf("Received OK \n")
+					scp.Printf("Received OK \n")
 				}
 			case 'E':
 				//E command: go back out of dir
 				dstDir = filepath.Dir(dstDir)
 				if scp.IsVerbose {
-					fmt.Printf("Received End-Dir\n")
+					scp.Printf("Received End-Dir\n")
 				}
 				err = sendByte(cw, 0)
 				if err != nil {
-					fmt.Println("Write error: %s", err.Error())
+					scp.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
 			case 0xA:
 				//0xA command: end?
 				if scp.IsVerbose {
-					fmt.Printf("Received All-done\n")
+					scp.Printf("Received All-done\n")
 				}
 				err = sendByte(cw, 0)
 				if err != nil {
@@ -110,10 +113,18 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 					return
 				}
 				fileMode := os.FileMode(uint32(fs.mode))
-				if dstFileNotExist && first {
-					err = os.Mkdir(dstDir, fileMode)
-					if err != nil {
-						rCh <- err
+				if first {
+					if dstFileNotExist {
+						if scp.IsVerbose {
+							scp.Printf("makdir %q\n", dstDir)
+						}
+						err = os.Mkdir(dstDir, fileMode)
+						if err != nil {
+							rCh <- err
+							return
+						}
+					}else if !dstFileInfo.IsDir(){
+						rCh <- fmt.Errorf("%q: Not a directory", dstDir)
 						return
 					}
 				}
@@ -128,7 +139,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 				dstDir = thisDstFile
 				err = sendByte(cw, 0)
 				if err != nil {
-					fmt.Println("Write error: %s", err.Error())
+					scp.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
@@ -145,7 +156,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 				}
 				err = sendByte(cw, 0)
 				if err != nil {
-					fmt.Println("Write error: %s", err.Error())
+					scp.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
@@ -166,7 +177,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 				fs.mtime = time.Unix(int64(t), 0)
 				err = sendByte(cw, 0)
 				if err != nil {
-					fmt.Println("Write error: %s", err.Error())
+					scp.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
@@ -186,14 +197,14 @@ func (scp *Scp) openRemoteReceiver(rCh chan error) (r io.Reader, w io.WriteClose
 	ci := com.NewConnectInfo(scp.dstUser, scp.dstHost, scp.Port, password)
 	conn, err := ci.Connect()
 	if err != nil {
-		fmt.Printf("unable to create session: %s", err)
+		scp.Printf("unable to create session: %s", err)
 		return nil, nil, err
 	}
 	s, err := conn.NewSession()
 	if err != nil {
 		return nil, nil, err
 	} else if scp.IsVerbose {
-		fmt.Fprintln(scp.Stderr, "Got receiver session")
+		scp.Println("Got receiver session")
 	}
 	w, err = s.StdinPipe()
 	if err != nil {
@@ -249,7 +260,7 @@ func (scp *Scp)parseCmd(cmdStr []string) (mode int64, size int64, filename strin
 	}
 	filename = cmdStr[2]
 	if scp.IsVerbose {
-		fmt.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, filename)
+		scp.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, filename)
 	}
 	return
 }
@@ -257,7 +268,7 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	//C command - file
 	thisDstFile := filepath.Join(dstDir, fs.filename)
 	if scp.IsVerbose {
-		fmt.Fprintln(scp.Stderr, "Creating destination file: ", thisDstFile)
+		scp.Println("Creating destination file: ", thisDstFile)
 	}
 	tot := int64(0)
 	pb := NewProgressBarTo(fs.filename, fs.size, outPipe)
@@ -312,6 +323,6 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 		return
 	}
 	pb.Update(tot)
-	fmt.Println(outPipe) //new line
+	scp.Println() //new line
 	return
 }
