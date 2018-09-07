@@ -58,6 +58,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		//use a scanner for processing individual commands, but not files themselves
 		scanner := bufio.NewScanner(r)
 		more := true
+		first := false
 		for more {
 			cmdArr := make([]byte, 1)
 			n, err := r.Read(cmdArr)
@@ -155,6 +156,13 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 					}
 					var filename string
 					//use the specified filename from the destination (only for top-level item)
+					if dstFileNotExist && scp.IsRecursive && first{
+						err = os.Mkdir(dstFile, fileMode)
+						if err != nil {
+							rCh <- err
+							return
+						}
+					}
 					if useSpecifiedFilename {
 						if dstFileNotExist {
 							filename = dstFile
