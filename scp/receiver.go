@@ -14,7 +14,7 @@ import (
 )
 type FileSet struct{
 	ftype string
-	mode int64
+	mode os.FileMode
 	size int64
 	atime time.Time
 	mtime time.Time
@@ -170,20 +170,20 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 					return
 				}
 			case 'T':
-				// access time
+				// modification time
 				t, err := strconv.ParseUint(parts[0][1:], 10, 64)
 				if err != nil {
 					rCh <- err
 					return
 				}
-				fs.atime = time.Unix(int64(t), 0)
-				// modification time
+				fs.mtime = time.Unix(int64(t), 0)
+				// access time
 				t, err = strconv.ParseUint(parts[2], 10, 64)
 				if err != nil {
 					rCh <- err
 					return
 				}
-				fs.mtime = time.Unix(int64(t), 0)
+				fs.atime = time.Unix(int64(t), 0)
 				err = sendByte(cw, 0)
 				if err != nil {
 					scp.Println("Write error: %s", err.Error())
@@ -257,11 +257,12 @@ func (scp *Scp) openReceiver(rCh chan error) (rw *ReadWriter, err error) {
 	}
 	return
 }
-func (scp *Scp)parseCmd(cmdStr []string) (mode int64, size int64, filename string, err error){
-	mode, err = strconv.ParseInt(cmdStr[0][1:], 8, 32)
+func (scp *Scp)parseCmd(cmdStr []string) (mode os.FileMode, size int64, filename string, err error){
+	m, err := strconv.ParseInt(cmdStr[0][1:], 8, 32)
 	if err != nil {
 		return
 	}
+	mode = os.FileMode(m)
 	sizeUint, err := strconv.ParseUint(cmdStr[1], 10, 64)
 	size = int64(sizeUint)
 	if err != nil {
@@ -314,6 +315,11 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 		}
 		lastPercent = percent
 	}
+	if scp.IsPreserve{
+		if err := fw.Chmod(fs.mode); err != nil {
+			return err
+		}
+	}
 	//close file writer & check error
 	err = fw.Close()
 	if err != nil {
@@ -330,6 +336,12 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	_, err = cw.Write([]byte{0})
 	if err != nil {
 		return
+	}
+	if scp.IsPreserve {
+		fmt.Printf("fs.atime:%v, fs.mtime:%v", fs.atime, fs.mtime)
+		if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
+			return err
+		}
 	}
 	pb.Update(tot)
 	scp.Println() //new line
