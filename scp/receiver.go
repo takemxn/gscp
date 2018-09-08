@@ -32,7 +32,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		}
 		//OK - create file/dir
 		dstFileNotExist = true
-		dstDir = ""
+		dstDir = filepath.Dir(dstFile)
 	} else if dstFileInfo.IsDir() {
 		//ok - use name of srcFile
 		//dstFile = filepath.Join(dstFile, filepath.Base(srcFile))
@@ -149,6 +149,12 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 			case 'C':
 				fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
 				if err != nil {
+					rCh <- err
+					return
+				}
+				err = sendByte(cw, 0)
+				if err != nil {
+					scp.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
@@ -271,7 +277,7 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	//C command - file
 	thisDstFile := filepath.Join(dstDir, fs.filename)
 	if scp.IsVerbose {
-		scp.Println("Creating destination file: ", thisDstFile, dstDir, fs.filename)
+		scp.Println("Creating destination file: ", thisDstFile)
 	}
 	tot := int64(0)
 	pb := NewProgressBarTo(fs.filename, fs.size, outPipe)

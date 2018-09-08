@@ -5,9 +5,9 @@ D=/tmp
 test_scp_remote_local(){
 	trap 'return 1' ERR
 
-	set -x
 	echo "abc" > $D/from/t.txt
-	./gscp -v $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
+	set -x
+	./gscp $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
 	diff $D/from/t.txt $D/to/t.txt
 	set +x
 }
@@ -27,7 +27,7 @@ main(){
 	test_scp_remote_local
 	test_scp_local_remote
 	test_scp_remote_remote
-	term_proc
+	rm_dir
 }
 trap 'rm_dir;return 1' ERR
 main
