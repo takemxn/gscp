@@ -3,20 +3,28 @@
 SCPUSER=take
 D=/tmp
 test_scp_remote_local(){
-	set -x
 	echo "abc" > $D/from/t.txt
 	./gscp $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
 	diff $D/from $D/to
 
+	rm -rf $D/to/*
 	./gscp -r $SCPUSER@localhost:$D/from $D/to
 	diff $D/from $D/to/from
 
+	rm -rf $D/to/*
 	chmod 777 $D/from/t.txt
 	sleep 2
 	touch -a $D/from/t.txt
 	echo "def" > $D/from/a.txt
 	./gscp -p -r $SCPUSER@localhost:$D/from $D/to
 	diff_deep $D/from $D/to/from
+
+	rm -rf $D/to/*
+	mkdir $D/from/tt
+	echo "tt" > $D/from/tt/tt.txt
+	sleep 2
+	./gscp -p -r $SCPUSER@localhost:$D/from/* $D/to
+	diff -r $D/from $D/to
 }
 diff_deep(){
 	local A=$1

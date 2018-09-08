@@ -139,10 +139,15 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 					rCh <- err
 					return
 				}
+				if scp.IsPreserve {
+					if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
+						rCh <- err
+						return
+					}
+				}
 				dstDir = thisDstFile
 				err = sendByte(cw, 0)
 				if err != nil {
-					scp.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
@@ -338,7 +343,6 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 		return
 	}
 	if scp.IsPreserve {
-		fmt.Printf("fs.atime:%v, fs.mtime:%v", fs.atime, fs.mtime)
 		if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
 			return err
 		}
