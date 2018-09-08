@@ -176,8 +176,8 @@ func (scp *Scp) Exec() (err error) {
 	return err
 }
 func (scp *Scp) Printf(format string, args ...interface{}){
-	fmt.Fprintf(scp.Stderr, format, args)
+	fmt.Fprintf(scp.Stderr, format, args...)
 }
-func (scp *Scp) Println(args ...string){
-	fmt.Fprintln(scp.Stderr, args)
+func (scp *Scp) Println(args ...interface{}){
+	fmt.Fprintln(scp.Stderr, args...)
 }

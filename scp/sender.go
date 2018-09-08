@@ -11,7 +11,7 @@ import (
 func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err error) {
 	password := scp.Password
 	if password == "" {
-		password = scp.config.GetPassword(scp.dstUser,  scp.dstHost, scp.Port)
+		password = scp.config.GetPassword(user, host, scp.Port)
 	}
 	ci := com.NewConnectInfo(user, host, scp.Port, password)
 	conn, err := ci.Connect()

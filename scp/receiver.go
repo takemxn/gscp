@@ -32,7 +32,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		}
 		//OK - create file/dir
 		dstFileNotExist = true
-		dstFile = ""
+		dstDir = ""
 	} else if dstFileInfo.IsDir() {
 		//ok - use name of srcFile
 		//dstFile = filepath.Join(dstFile, filepath.Base(srcFile))
@@ -64,6 +64,9 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			cmdFull := scanner.Text()
+			if scp.IsVerbose {
+				scp.Println("cmdFull:", cmdFull)
+			}
 			parts := strings.Split(cmdFull, " ")
 			if len(parts) == 0 {
 				scp.Printf("Received OK \n")
@@ -162,7 +165,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 				}
 			case 'T':
 				// access time
-				t, err := strconv.ParseUint(parts[0][0:1], 10, 64)
+				t, err := strconv.ParseUint(parts[0][1:], 10, 64)
 				if err != nil {
 					rCh <- err
 					return
@@ -214,7 +217,7 @@ func (scp *Scp) openRemoteReceiver(rCh chan error) (r io.Reader, w io.WriteClose
 	if err != nil {
 		return nil, nil, err
 	}
-	remoteOpts := "-t"
+	remoteOpts := "-pt"
 	if scp.IsQuiet {
 		remoteOpts += "q"
 	}
@@ -249,7 +252,7 @@ func (scp *Scp) openReceiver(rCh chan error) (rw *ReadWriter, err error) {
 	return
 }
 func (scp *Scp)parseCmd(cmdStr []string) (mode int64, size int64, filename string, err error){
-	mode, err = strconv.ParseInt(cmdStr[0][0:1], 8, 32)
+	mode, err = strconv.ParseInt(cmdStr[0][1:], 8, 32)
 	if err != nil {
 		return
 	}
@@ -268,7 +271,7 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	//C command - file
 	thisDstFile := filepath.Join(dstDir, fs.filename)
 	if scp.IsVerbose {
-		scp.Println("Creating destination file: ", thisDstFile)
+		scp.Println("Creating destination file: ", thisDstFile, dstDir, fs.filename)
 	}
 	tot := int64(0)
 	pb := NewProgressBarTo(fs.filename, fs.size, outPipe)
