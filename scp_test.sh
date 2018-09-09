@@ -2,29 +2,46 @@
 
 SCPUSER=take
 D=/tmp
-test_scp_remote_local(){
-	echo "abc" > $D/from/t.txt
+test_1(){
+	echo TEST_1
+	init_dir
+	head -c 20m /dev/urandom > $D/from/t.txt
 	./gscp $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
 	diff $D/from $D/to
-
-	rm -rf $D/to/*
+}
+test_2(){
+	echo TEST_2
+	init_dir
+	head -c 1m /dev/urandom > $D/from/t.txt
 	./gscp -r $SCPUSER@localhost:$D/from $D/to
 	diff $D/from $D/to/from
-
-	rm -rf $D/to/*
+}
+test_3(){
+	echo TEST_3
+	init_dir
+	head -c 200m /dev/urandom > $D/from/t.txt
 	chmod 777 $D/from/t.txt
 	sleep 2
-	touch -a $D/from/t.txt
+	head -c 20m /dev/urandom > $D/from/a.txt
 	echo "def" > $D/from/a.txt
-	./gscp -p -r $SCPUSER@localhost:$D/from $D/to
+	./gscp -p -v -r $SCPUSER@localhost:$D/from $D/to
 	diff_deep $D/from $D/to/from
-
-	rm -rf $D/to/*
+}
+test_4(){
+	echo TEST_4
+	init_dir
+	head -c 200m /dev/urandom > $D/from/t.txt
 	mkdir $D/from/tt
-	echo "tt" > $D/from/tt/tt.txt
+	echo "def" > $D/from/a.txt
+	head -c 20m /dev/urandom > $D/from/tt/tt.txt
 	sleep 2
-	./gscp -p -r $SCPUSER@localhost:$D/from/* $D/to
+	set -x
+	./gscp -p -vr $SCPUSER@localhost:$D/from/* $D/to
 	diff -r $D/from $D/to
+	set +x
+}
+test_scp_remote_local(){
+	test_4
 }
 diff_deep(){
 	local A=$1
@@ -46,10 +63,12 @@ rm_dir(){
 	rm -rf $D/from
 	rm -rf $D/to
 }
-main(){
-	trap 'set +x;return 1' ERR
+init_dir(){
 	rm_dir
 	mkdir ${D}/from ${D}/to
+}
+main(){
+	trap 'set +x;return 1' ERR
 	test_scp_remote_local
 	test_scp_local_remote
 	#test_scp_remote_remote

@@ -139,12 +139,14 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 					rCh <- err
 					return
 				}
+				/*
 				if scp.IsPreserve {
 					if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
 						rCh <- err
 						return
 					}
 				}
+				*/
 				dstDir = thisDstFile
 				err = sendByte(cw, 0)
 				if err != nil {
@@ -285,7 +287,6 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	if scp.IsVerbose {
 		scp.Println("Creating destination file: ", thisDstFile)
 	}
-	tot := int64(0)
 	pb := NewProgressBarTo(fs.filename, fs.size, outPipe)
 	pb.Update(0)
 
@@ -297,23 +298,24 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	defer fw.Close()
 
 	//buffered by 4096 bytes
+	err = io.Copy(fw, rd, fs.size)
+	tot := int64(0)
 	bufferSize := int64(4096)
 	lastPercent := int64(0)
+	b := make([]byte, bufferSize)
 	for tot < fs.size {
-		if bufferSize > fs.size-tot {
-			bufferSize = fs.size - tot
-		}
-		b := make([]byte, bufferSize)
 		n, err := rd.Read(b)
 		if err != nil {
 			return err
 		}
-		tot += int64(n)
-		//write to file
-		_, err = fw.Write(b[:n])
-		if err != nil {
-			return err
+		for i := 0;i < n;{
+			wn, err := fw.Write(b[i:n])
+			if err != nil {
+				return err
+			}
+			i += wn
 		}
+		tot += int64(n)
 		percent := (100 * tot) / fs.size
 		if percent > lastPercent {
 			pb.Update(tot)
