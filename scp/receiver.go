@@ -46,6 +46,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 	}
 	go func() {
 		defer func(){
+			fmt.Println("End defer")
 			close(rCh)
 		}()
 		r := rd
@@ -64,13 +65,14 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			cmdFull := scanner.Text()
+			scp.Printf("cmdFull:[%v]\n", cmdFull)
 			if scp.IsVerbose {
-				scp.Println("cmdFull:", cmdFull)
+				scp.Printf("cmdFull:[%v]\n", cmdFull)
 			}
 			parts := strings.Split(cmdFull, " ")
-			if len(parts) == 0 {
+			if cmdFull == "" || len(parts) == 0 {
 				scp.Printf("Received OK \n")
-				continue
+				return
 			}
 			cmd := []byte(cmdFull)[0]
 			if scp.IsVerbose {
@@ -298,22 +300,23 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	defer fw.Close()
 
 	//buffered by 4096 bytes
-	err = io.Copy(fw, rd, fs.size)
 	tot := int64(0)
-	bufferSize := int64(4096)
 	lastPercent := int64(0)
-	b := make([]byte, bufferSize)
+	var rb []byte
 	for tot < fs.size {
-		n, err := rd.Read(b)
+		rest := fs.size - tot
+		if rest < 4096 {
+			rb = make([]byte, rest)
+		}else{
+			rb = make([]byte, 4096)
+		}
+		n, err := rd.Read(rb)
 		if err != nil {
 			return err
 		}
-		for i := 0;i < n;{
-			wn, err := fw.Write(b[i:n])
-			if err != nil {
-				return err
-			}
-			i += wn
+		_, err = fw.Write(rb[:n])
+		if err != nil {
+			return err
 		}
 		tot += int64(n)
 		percent := (100 * tot) / fs.size
@@ -332,15 +335,13 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	if err != nil {
 		return
 	}
-	//get next byte from channel reader
-	nb := make([]byte, 1)
-	_, err = rd.Read(nb)
+	_, err = cw.Write([]byte{0})
 	if err != nil {
 		return
 	}
-	//TODO check value received in nb
-	//send null-byte back
-	_, err = cw.Write([]byte{0})
+	//get next byte from channel reader
+	b := make([]byte, 1)
+	_, err = rd.Read(b)
 	if err != nil {
 		return
 	}

@@ -38,8 +38,24 @@ func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err err
 	if err != nil {
 		return
 	}
-	go io.Copy(w, rw)
-	go io.Copy(rw, r)
+	go func(){
+		for{
+			io.CopyN(w, rw, 1)
+		}
+	}()
+	go func(){
+		for{
+			buf := make([]byte, 4096)
+			n, err := r.Read(buf)
+			if err != nil {
+				return
+			}
+			_, err = rw.Write(buf[:n])
+			if err != nil {
+				return
+			}
+		}
+	}()
 	go io.Copy(scp.Stderr, e)
 	remoteOpts := "-pf"
 	if scp.IsQuiet {
@@ -49,11 +65,12 @@ func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err err
 		remoteOpts += "r"
 	}
 	//TODO should this path (/usr/bin/scp) be configurable?
-	err = s.Start("/usr/bin/scp " + remoteOpts + " " + file)
+	err = s.Run("/usr/bin/scp " + remoteOpts + " " + file)
 	if err != nil {
 		fmt.Println( "Failed to run remote scp: ",err)
 	}
-	s.Wait()
+	s.Close()
+	w.Close()
 	return
 }
 func (scp *Scp) sendFromLocal(srcFile string, w io.Writer) (err error) {

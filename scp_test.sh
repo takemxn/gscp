@@ -30,10 +30,10 @@ test_3(){
 test_4(){
 	echo TEST_4
 	init_dir
-	head -c 200m /dev/urandom > $D/from/t.txt
+	head -c 1m /dev/urandom > $D/from/t.txt
 	mkdir $D/from/tt
 	echo "def" > $D/from/a.txt
-	head -c 20m /dev/urandom > $D/from/tt/tt.txt
+	head -c 4098 /dev/urandom > $D/from/tt/tt.txt
 	sleep 2
 	set -x
 	./gscp -p -vr $SCPUSER@localhost:$D/from/* $D/to

@@ -167,13 +167,17 @@ func (scp *Scp) Exec() (err error) {
 				break
 			}
 		}
-		rw.Close()
+		close(sCh)
 	}()
-	select {
-	case err = <- rCh:
-	case err = <- sCh:
+	err = <-sCh
+	if err != nil {
+		return
 	}
-	return err
+	err = <-rCh
+	if err != nil {
+		return
+	}
+	return
 }
 func (scp *Scp) Printf(format string, args ...interface{}){
 	fmt.Fprintf(scp.Stderr, format, args...)
