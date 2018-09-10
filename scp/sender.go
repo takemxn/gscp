@@ -41,7 +41,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 	go func(){
 		//io.Copy(w, out)
 		for{
-			buf := make([]byte, 4096)
+			buf := make([]byte, BUF_SIZE)
 			n, err := out.Read(buf)
 			if err != nil {
 				if err == io.EOF{
@@ -59,7 +59,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 	go func(){
 		//io.Copy(in, r)
 		for{
-			buf := make([]byte, 4096)
+			buf := make([]byte, BUF_SIZE)
 			n, err := r.Read(buf)
 			if err != nil {
 				if err == io.EOF {

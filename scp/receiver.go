@@ -305,16 +305,15 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	}
 	defer fw.Close()
 
-	//buffered by 4096 bytes
 	tot := int64(0)
 	lastPercent := int64(0)
 	var rb []byte
 	for tot < fs.size {
 		rest := fs.size - tot
-		if rest < 4096 {
+		if rest < BUF_SIZE {
 			rb = make([]byte, rest)
 		}else{
-			rb = make([]byte, 4096)
+			rb = make([]byte, BUF_SIZE)
 		}
 		n, err := rd.Read(rb)
 		if err != nil {

@@ -56,7 +56,7 @@ diff_deep(){
 	diff A.txt B.txt
 	return $?
 }
-TEST_L_R_1{
+TEST_L_R_1(){
 	echo "TEST_L_R_1"
 	init_dir
 	echo "abc" > $D/from/a.txt
@@ -80,8 +80,8 @@ init_dir(){
 }
 main(){
 	trap 'set +x;return 1' ERR
-	#test_scp_remote_local
-	test_scp_local_remote
+	test_scp_remote_local
+	#test_scp_local_remote
 	#test_scp_remote_remote
 }
 main

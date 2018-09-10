@@ -14,6 +14,7 @@ import (
 
 const (
 	VERSION = "0.1.0"
+	BUF_SIZE = (4096)
 )
 type Channel struct {
 	ch chan []byte
@@ -42,22 +43,13 @@ func (ch *Channel) Read(p []byte) (n int, err error){
 		}
 	}
 	return 0, nil
-	
-/*
-	i := 0
-	for ;i < len(p);i++{
-		b, ok := <- ch.ch
-		if ok {
-			p[i] = b[0]
-		}else{
-			break
-		}
-	}
-	return i, nil
-*/
 }
 func (ch *Channel) Close() (err error){
-	close(ch.ch)
+	select {
+	case <- ch.ch:
+	default:
+		close(ch.ch)
+	}
 	return nil
 }
 type Scp struct {
@@ -194,6 +186,8 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
+	defer in.Close()
+	defer out.Close()
 	sCh := make(chan error, 1)
 	go func(){
 		for _, v := range scp.args[0 : len(scp.args)-1] {
