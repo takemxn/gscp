@@ -2,7 +2,6 @@ package scp
 
 import (
 	"fmt"
-	"bufio"
 	"errors"
 	com "github.com/takemxn/gssh/common"
 	"io"
@@ -20,7 +19,7 @@ type FileSet struct{
 	mtime time.Time
 	filename string
 }
-func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (err error) {
+func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err error) {
 	dstFile := scp.dstFile
 	errPipe := scp.Stderr
 	dstFileInfo, e := os.Stat(dstFile)
@@ -49,7 +48,6 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 			fmt.Println("End defer")
 			close(rCh)
 		}()
-		r := rd
 		if scp.IsVerbose {
 			scp.Println("Sending null byte")
 		}
@@ -62,9 +60,21 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 		//use a scanner for processing individual commands, but not files themselves
 		fs := new(FileSet)
 		first := false
-		scanner := bufio.NewScanner(r)
-		for scanner.Scan() {
-			cmdFull := scanner.Text()
+		//scanner := bufio.NewScanner(rd)
+		//for scanner.Scan() {
+		//	cmdFull := scanner.Text()
+		for {
+			b := make([]byte, 4096)
+			_, err := rd.Read(b)
+			if err != nil {
+				rCh <- err
+				return
+			}
+			cmd := b[0]
+			if scp.IsVerbose {
+				scp.Printf("cmd : [%v]\n", string(cmd))
+			}
+			cmdFull := ""
 			scp.Printf("cmdFull:[%v]\n", cmdFull)
 			if scp.IsVerbose {
 				scp.Printf("cmdFull:[%v]\n", cmdFull)
@@ -73,10 +83,6 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 			if cmdFull == "" || len(parts) == 0 {
 				scp.Printf("Received OK \n")
 				return
-			}
-			cmd := []byte(cmdFull)[0]
-			if scp.IsVerbose {
-				scp.Printf("cmd : [%v]\n", cmd)
 			}
 			switch cmd {
 			case 0x0:
@@ -207,7 +213,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer, rCh chan error) (e
 	}()
 	return
 }
-func (scp *Scp) openRemoteReceiver(rCh chan error) (r io.Reader, w io.WriteCloser, err error) {
+func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error) {
 	password := scp.Password
 	if password == "" {
 		password = scp.config.GetPassword(scp.dstUser,  scp.dstHost, scp.Port)
@@ -216,22 +222,24 @@ func (scp *Scp) openRemoteReceiver(rCh chan error) (r io.Reader, w io.WriteClose
 	conn, err := ci.Connect()
 	if err != nil {
 		scp.Printf("unable to create session: %s", err)
-		return nil, nil, err
+		return err
 	}
 	s, err := conn.NewSession()
 	if err != nil {
-		return nil, nil, err
+		return err
 	} else if scp.IsVerbose {
 		scp.Println("Got receiver session")
 	}
-	w, err = s.StdinPipe()
+	w, err := s.StdinPipe()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	r, err = s.StdoutPipe()
+	r, err := s.StdoutPipe()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
+	go io.Copy(in, r)
+	go io.Copy(w, out)
 	remoteOpts := "-pt"
 	if scp.IsQuiet {
 		remoteOpts += "q"
@@ -240,29 +248,27 @@ func (scp *Scp) openRemoteReceiver(rCh chan error) (r io.Reader, w io.WriteClose
 		remoteOpts += "r"
 	}
 	go func(){
-		err = s.Start("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
+		err = s.Run("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
 		if err != nil {
 			rCh <- err
 		}
-		rCh <- s.Wait()
+		rCh <- nil
 	}()
 	return
 }
-func (scp *Scp) openReceiver(rCh chan error) (rw *ReadWriter, err error) {
+func (scp *Scp) openReceiver(rCh chan error) (in *Channel, out *Channel, err error) {
+	in = NewChannel(4096)
+	out = NewChannel(4096)
 	if scp.dstHost != "" {
-		r, w, err := scp.openRemoteReceiver(rCh)
+		err = scp.openRemoteReceiver(in, out, rCh)
 		if err != nil {
-			return  nil, err
+			return nil, nil, err
 		}
-		rw = NewReadWriter(r, w)
 	} else {
-		r, w := io.Pipe()
-		r2, w2 := io.Pipe()
-		err := scp.openLocalReceiver(r, w2, rCh)
+		err = scp.openLocalReceiver(in, out, rCh)
 		if err != nil {
-			return nil, err
+			return
 		}
-		rw = NewReadWriter(r2, w)
 	}
 	return
 }

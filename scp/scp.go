@@ -15,13 +15,27 @@ import (
 const (
 	VERSION = "0.1.0"
 )
-type ReadWriter struct {
-	io.Reader
-	io.WriteCloser
+type Channel struct {
+	ch chan []byte
 }
-func NewReadWriter(r io.Reader, w io.WriteCloser) (rw *ReadWriter){
-	rw = &ReadWriter{r, w}
-	return
+func NewChannel(size int) *Channel{
+	return &Channel{make(chan []byte, size)}
+}
+func (ch *Channel) Write(p []byte) (n int, err error){
+	ch.ch <- p
+	return len(p), nil
+}
+func (ch *Channel) Read(p []byte) (n int, err error){
+	b, ok := <- ch.ch
+	if ok {
+		copy(p, b)
+		return len(b), nil
+	}
+	return 0, nil
+}
+func (ch *Channel) Close() (err error){
+	close(ch.ch)
+	return nil
 }
 type Scp struct {
 	Port              int
@@ -153,15 +167,16 @@ func (scp *Scp) Exec() (err error) {
 		return err
 	}
 	rCh := make(chan error, 1)
-	rw, err := scp.openReceiver(rCh)
+	in, out, err := scp.openReceiver(rCh)
 	if err != nil {
 		return err
 	}
-	defer rw.Close()
+	defer in.Close()
+	defer out.Close()
 	sCh := make(chan error, 1)
 	go func(){
 		for _, v := range scp.args[0 : len(scp.args)-1] {
-			err := scp.sendFrom(v, rw)
+			err := scp.sendFrom(v, in, out)
 			if err != nil {
 				sCh <- err
 				break

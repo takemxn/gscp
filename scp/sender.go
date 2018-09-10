@@ -8,7 +8,7 @@ import (
 	"io"
 )
 
-func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err error) {
+func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err error) {
 	password := scp.Password
 	if password == "" {
 		password = scp.config.GetPassword(user, host, scp.Port)
@@ -40,7 +40,16 @@ func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err err
 	}
 	go func(){
 		for{
-			io.CopyN(w, rw, 1)
+			buf := make([]byte, 4096)
+			n, err := out.Read(buf)
+			if err != nil {
+				return
+			}
+			fmt.Println("Read From Receiver:", buf[:n])
+			_, err = w.Write(buf[:n])
+			if err != nil {
+				return
+			}
 		}
 	}()
 	go func(){
@@ -50,7 +59,8 @@ func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err err
 			if err != nil {
 				return
 			}
-			_, err = rw.Write(buf[:n])
+			fmt.Println("Read From SCP:", string(buf[:n]))
+			_, err = in.Write(buf[:n])
 			if err != nil {
 				return
 			}
@@ -73,7 +83,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, rw *ReadWriter) (err err
 	w.Close()
 	return
 }
-func (scp *Scp) sendFromLocal(srcFile string, w io.Writer) (err error) {
+func (scp *Scp) sendFromLocal(srcFile string, in, out *Channel) (err error) {
 	errPipe := scp.Stderr
 	outPipe := scp.Stdout
 	srcFileInfo, err := os.Stat(srcFile)
@@ -81,7 +91,7 @@ func (scp *Scp) sendFromLocal(srcFile string, w io.Writer) (err error) {
 		fmt.Println( "Could not stat source file "+srcFile)
 		return err
 	}
-	procWriter := w
+	procWriter := out
 	if scp.IsRecursive {
 		if srcFileInfo.IsDir() {
 			err = scp.processDir(procWriter, srcFile, srcFileInfo, outPipe, errPipe)
@@ -198,18 +208,18 @@ func (scp *Scp) sendFile(procWriter io.Writer, srcPath string, srcFileInfo os.Fi
 	}
 	return err
 }
-func (scp *Scp) sendFrom(file string, rw *ReadWriter) (err error) {
+func (scp *Scp) sendFrom(file string, in, out *Channel) (err error) {
 	file, host, user, err := parseTarget(file)
 	if err != nil {
 		return
 	}
 	if host != "" {
-		err = scp.sendFromRemote(file, user, host, rw)
+		err = scp.sendFromRemote(file, user, host, in, out)
 		if err != nil {
 			return
 		}
 	} else {
-		err = scp.sendFromLocal(file, rw)
+		err = scp.sendFromLocal(file, in, out)
 		if err != nil {
 			return
 		}
