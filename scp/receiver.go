@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bufio"
 )
 type FileSet struct{
 	ftype string
@@ -45,7 +46,6 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 	}
 	go func() {
 		defer func(){
-			fmt.Println("End defer")
 			close(rCh)
 		}()
 		if scp.IsVerbose {
@@ -64,25 +64,18 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 		//for scanner.Scan() {
 		//	cmdFull := scanner.Text()
 		for {
-			b := make([]byte, 4096)
-			_, err := rd.Read(b)
+			b := make([]byte, 1)
+			n, err := rd.Read(b)
 			if err != nil {
 				rCh <- err
+				return
+			}
+			if n == 0 {
 				return
 			}
 			cmd := b[0]
 			if scp.IsVerbose {
 				scp.Printf("cmd : [%v]\n", string(cmd))
-			}
-			cmdFull := ""
-			scp.Printf("cmdFull:[%v]\n", cmdFull)
-			if scp.IsVerbose {
-				scp.Printf("cmdFull:[%v]\n", cmdFull)
-			}
-			parts := strings.Split(cmdFull, " ")
-			if cmdFull == "" || len(parts) == 0 {
-				scp.Printf("Received OK \n")
-				return
 			}
 			switch cmd {
 			case 0x0:
@@ -114,6 +107,11 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 				}
 				return
 			case 'D':
+				parts, err := scp.parseCmdLine(rd)
+				if err != nil {
+					rCh <- err
+					return
+				}
 				fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
 				if err != nil {
 					rCh <- err
@@ -147,14 +145,12 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					rCh <- err
 					return
 				}
-				/*
 				if scp.IsPreserve {
 					if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
 						rCh <- err
 						return
 					}
 				}
-				*/
 				dstDir = thisDstFile
 				err = sendByte(cw, 0)
 				if err != nil {
@@ -162,6 +158,11 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					return
 				}
 			case 'C':
+				parts, err := scp.parseCmdLine(rd)
+				if err != nil {
+					rCh <- err
+					return
+				}
 				fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
 				if err != nil {
 					rCh <- err
@@ -178,15 +179,14 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					rCh <- err
 					return
 				}
-				err = sendByte(cw, 0)
+			case 'T':
+				parts, err := scp.parseCmdLine(rd)
 				if err != nil {
-					scp.Println("Write error: %s", err.Error())
 					rCh <- err
 					return
 				}
-			case 'T':
 				// modification time
-				t, err := strconv.ParseUint(parts[0][1:], 10, 64)
+				t, err := strconv.ParseUint(parts[0], 10, 64)
 				if err != nil {
 					rCh <- err
 					return
@@ -206,7 +206,7 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					return
 				}
 			default :
-				rCh <- fmt.Errorf("Command '%v' NOT implemented\n", cmd)
+				rCh <- fmt.Errorf("Command '%x' NOT implemented\n", cmd)
 				return
 			}
 		}
@@ -257,8 +257,8 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 	return
 }
 func (scp *Scp) openReceiver(rCh chan error) (in *Channel, out *Channel, err error) {
-	in = NewChannel(4096)
-	out = NewChannel(4096)
+	in = NewChannel()
+	out = NewChannel()
 	if scp.dstHost != "" {
 		err = scp.openRemoteReceiver(in, out, rCh)
 		if err != nil {
@@ -273,7 +273,7 @@ func (scp *Scp) openReceiver(rCh chan error) (in *Channel, out *Channel, err err
 	return
 }
 func (scp *Scp)parseCmd(cmdStr []string) (mode os.FileMode, size int64, filename string, err error){
-	m, err := strconv.ParseInt(cmdStr[0][1:], 8, 32)
+	m, err := strconv.ParseInt(cmdStr[0], 8, 32)
 	if err != nil {
 		return
 	}
@@ -358,5 +358,22 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	}
 	pb.Update(tot)
 	scp.Println() //new line
+	return
+}
+func (scp *Scp) parseCmdLine(rd io.Reader) (parts []string, err error){
+	br := bufio.NewReader(rd)
+	line, _, err := br.ReadLine()
+	if err != nil {
+		return
+	}
+	cmdLine := string(line)
+	if scp.IsVerbose {
+		scp.Printf("cmdFull:[%v]\n", cmdLine)
+	}
+	parts = strings.Split(string(cmdLine), " ")
+	if cmdLine == "" || len(parts) == 0 {
+		scp.Printf("Received OK \n")
+		return
+	}
 	return
 }

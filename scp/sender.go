@@ -39,29 +39,38 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 		return
 	}
 	go func(){
+		//io.Copy(w, out)
 		for{
 			buf := make([]byte, 4096)
 			n, err := out.Read(buf)
 			if err != nil {
+				if err == io.EOF{
+					w.Close()
+				}
 				return
 			}
-			fmt.Println("Read From Receiver:", buf[:n])
 			_, err = w.Write(buf[:n])
 			if err != nil {
+				fmt.Println(err)
 				return
 			}
 		}
 	}()
 	go func(){
+		//io.Copy(in, r)
 		for{
 			buf := make([]byte, 4096)
 			n, err := r.Read(buf)
 			if err != nil {
+				if err == io.EOF {
+					in.Close()
+				}
 				return
 			}
-			fmt.Println("Read From SCP:", string(buf[:n]))
 			_, err = in.Write(buf[:n])
 			if err != nil {
+				fmt.Println(err)
+				fmt.Println("scp write error", err)
 				return
 			}
 		}
@@ -77,10 +86,9 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 	//TODO should this path (/usr/bin/scp) be configurable?
 	err = s.Run("/usr/bin/scp " + remoteOpts + " " + file)
 	if err != nil {
-		fmt.Println( "Failed to run remote scp: ",err)
+		return
 	}
 	s.Close()
-	w.Close()
 	return
 }
 func (scp *Scp) sendFromLocal(srcFile string, in, out *Channel) (err error) {

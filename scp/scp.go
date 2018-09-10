@@ -17,21 +17,44 @@ const (
 )
 type Channel struct {
 	ch chan []byte
+	buffer []byte
 }
-func NewChannel(size int) *Channel{
-	return &Channel{make(chan []byte, size)}
+func NewChannel() *Channel{
+	ch := &Channel{}
+	ch.ch = make(chan []byte)
+	return ch
 }
 func (ch *Channel) Write(p []byte) (n int, err error){
 	ch.ch <- p
 	return len(p), nil
 }
 func (ch *Channel) Read(p []byte) (n int, err error){
-	b, ok := <- ch.ch
-	if ok {
-		copy(p, b)
-		return len(b), nil
+	if len(ch.buffer) > 0{
+		n := copy(p, ch.buffer)
+		ch.buffer = ch.buffer[n:]
+		return n, nil
+	}else{
+		b, ok := <- ch.ch
+		if ok {
+			n := copy(p, b)
+			ch.buffer = b[n:]
+			return n, nil
+		}
 	}
 	return 0, nil
+	
+/*
+	i := 0
+	for ;i < len(p);i++{
+		b, ok := <- ch.ch
+		if ok {
+			p[i] = b[0]
+		}else{
+			break
+		}
+	}
+	return i, nil
+*/
 }
 func (ch *Channel) Close() (err error){
 	close(ch.ch)
@@ -171,8 +194,6 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	defer out.Close()
 	sCh := make(chan error, 1)
 	go func(){
 		for _, v := range scp.args[0 : len(scp.args)-1] {
@@ -184,14 +205,7 @@ func (scp *Scp) Exec() (err error) {
 		}
 		close(sCh)
 	}()
-	err = <-sCh
-	if err != nil {
-		return
-	}
 	err = <-rCh
-	if err != nil {
-		return
-	}
 	return
 }
 func (scp *Scp) Printf(format string, args ...interface{}){
