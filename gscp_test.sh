@@ -56,7 +56,15 @@ diff_deep(){
 	diff A.txt B.txt
 	return $?
 }
+TEST_L_R_1{
+	echo "TEST_L_R_1"
+	init_dir
+	echo "abc" > $D/from/a.txt
+	./gscp -r $D/from/a.txt $SCPUSER@localhost:$D/to/.
+	diff $D/from/a.txt $D/to/a.txt
+}
 test_scp_local_remote(){
+	TEST_L_R_1
 	return 0
 }
 test_scp_remote_remote(){
@@ -72,7 +80,7 @@ init_dir(){
 }
 main(){
 	trap 'set +x;return 1' ERR
-	test_scp_remote_local
+	#test_scp_remote_local
 	test_scp_local_remote
 	#test_scp_remote_remote
 }
