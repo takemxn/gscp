@@ -8,7 +8,7 @@ import (
 	"io"
 )
 
-func (scp *Scp) sendFromRemote(file, user, host string, in, oCH *Channel) (err error) {
+func (scp *Scp) sendFromRemote(file, user, host string, iCH, oCH *Channel) (err error) {
 	password := scp.Password
 	if password == "" {
 		password = scp.config.GetPassword(user, host, scp.Port)
@@ -61,11 +61,11 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, oCH *Channel) (err e
 			n, err := r.Read(buf)
 			if err != nil {
 				if err == io.EOF {
-					in.Close()
+					iCH.Close()
 				}
 				return
 			}
-			_, err = in.Write(buf[:n])
+			_, err = iCH.Write(buf[:n])
 			if err != nil {
 				scp.Println("scp write error", err)
 				return

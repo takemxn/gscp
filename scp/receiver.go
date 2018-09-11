@@ -236,8 +236,40 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 	if err != nil {
 		return err
 	}
-	go io.Copy(in, r)
-	go io.Copy(w, out)
+	go func(){
+		for{
+			buf := make([]byte, BUF_SIZE)
+			n, err := r.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					in.Close()
+				}
+				return
+			}
+			_, err = in.Write(buf[:n])
+			if err != nil {
+				scp.Println("scp write error", err)
+				return
+			}
+		}
+	}()
+	go func(){
+		for{
+			buf := make([]byte, BUF_SIZE)
+			n, err := out.Read(buf)
+			if err != nil {
+				if err == io.EOF{
+					w.Close()
+				}
+				return
+			}
+			_, err = w.Write(buf[:n])
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+		}
+	}()
 	remoteOpts := "-pt"
 	if scp.IsQuiet {
 		remoteOpts += "q"
