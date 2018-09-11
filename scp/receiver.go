@@ -250,7 +250,6 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 		if err != nil {
 			rCh <- err
 		}
-		rCh <- nil
 	}()
 	return
 }

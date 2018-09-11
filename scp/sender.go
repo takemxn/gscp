@@ -8,7 +8,7 @@ import (
 	"io"
 )
 
-func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err error) {
+func (scp *Scp) sendFromRemote(file, user, host string, in, oCH *Channel) (err error) {
 	password := scp.Password
 	if password == "" {
 		password = scp.config.GetPassword(user, host, scp.Port)
@@ -41,7 +41,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 	go func(){
 		for{
 			buf := make([]byte, BUF_SIZE)
-			n, err := out.Read(buf)
+			n, err := oCH.Read(buf)
 			if err != nil {
 				if err == io.EOF{
 					w.Close()
@@ -87,7 +87,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 	s.Close()
 	return
 }
-func (scp *Scp) sendFromLocal(srcFile string, in, out *Channel) (err error) {
+func (scp *Scp) sendFromLocal(srcFile string, iCH, oCH *Channel) (err error) {
 	errPipe := scp.Stderr
 	outPipe := scp.Stdout
 	srcFileInfo, err := os.Stat(srcFile)
@@ -95,15 +95,14 @@ func (scp *Scp) sendFromLocal(srcFile string, in, out *Channel) (err error) {
 		fmt.Println( "Could not stat source file "+srcFile)
 		return err
 	}
-	procWriter := out
 	if scp.IsRecursive {
 		if srcFileInfo.IsDir() {
-			err = scp.processDir(procWriter, srcFile, srcFileInfo, outPipe, errPipe)
+			err = scp.processDir(iCH, oCH, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
 				fmt.Println( err.Error())
 			}
 		} else {
-			err = scp.sendFile(procWriter, srcFile, srcFileInfo, outPipe, errPipe)
+			err = scp.sendFile(iCH, oCH, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
 				fmt.Println( err.Error())
 			}
@@ -112,7 +111,7 @@ func (scp *Scp) sendFromLocal(srcFile string, in, out *Channel) (err error) {
 		if srcFileInfo.IsDir() {
 			return
 		} else {
-			err = scp.sendFile(procWriter, srcFile, srcFileInfo, outPipe, errPipe)
+			err = scp.sendFile(iCH, oCH, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
 				fmt.Println( err.Error())
 			}
@@ -120,8 +119,8 @@ func (scp *Scp) sendFromLocal(srcFile string, in, out *Channel) (err error) {
 	}
 	return
 }
-func (scp *Scp) processDir(procWriter io.Writer, srcFilePath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
-	err := scp.sendDir(procWriter, srcFilePath, srcFileInfo, errPipe)
+func (scp *Scp) processDir(iCH io.Reader, oCH io.Writer, srcFilePath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
+	err := scp.sendDir(iCH, oCH, srcFilePath, srcFileInfo, errPipe)
 	if err != nil {
 		return err
 	}
@@ -135,42 +134,42 @@ func (scp *Scp) processDir(procWriter io.Writer, srcFilePath string, srcFileInfo
 	}
 	for _, fi := range fis {
 		if fi.IsDir() {
-			err = scp.processDir(procWriter, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
+			err = scp.processDir(iCH, oCH, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
 			if err != nil {
 				return err
 			}
 		} else {
-			err = scp.sendFile(procWriter, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
+			err = scp.sendFile(iCH, oCH, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
 			if err != nil {
 				return err
 			}
 		}
 	}
 	//TODO process errors
-	err = scp.sendEndDir(procWriter, errPipe)
+	err = scp.sendEndDir(iCH, oCH, errPipe)
 	return err
 }
 
-func (scp *Scp) sendEndDir(procWriter io.Writer, errPipe io.Writer) error {
+func (scp *Scp) sendEndDir(iCH io.Reader, oCH io.Writer, errPipe io.Writer) error {
 	header := fmt.Sprintf("E\n")
 	if scp.IsVerbose {
 		fmt.Fprintf(errPipe, "Sending end dir: %s", header)
 	}
-	_, err := procWriter.Write([]byte(header))
+	_, err := oCH.Write([]byte(header))
 	return err
 }
 
-func (scp *Scp) sendDir(procWriter io.Writer, srcPath string, srcFileInfo os.FileInfo, errPipe io.Writer) error {
+func (scp *Scp) sendDir(iCH io.Reader, oCH io.Writer, srcPath string, srcFileInfo os.FileInfo, errPipe io.Writer) error {
 	mode := uint32(srcFileInfo.Mode().Perm())
 	header := fmt.Sprintf("D%04o 0 %s\n", mode, filepath.Base(srcPath))
 	if scp.IsVerbose {
 		fmt.Fprintf(errPipe, "Sending Dir header : %s", header)
 	}
-	_, err := procWriter.Write([]byte(header))
+	_, err := oCH.Write([]byte(header))
 	return err
 }
 
-func (scp *Scp) sendFile(procWriter io.Writer, srcPath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
+func (scp *Scp) sendFile(iCH io.Reader, oCH io.Writer, srcPath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
 	//single file
 	mode := uint32(srcFileInfo.Mode().Perm())
 	fileReader, err := os.Open(srcPath)
@@ -185,17 +184,17 @@ func (scp *Scp) sendFile(procWriter io.Writer, srcPath string, srcFileInfo os.Fi
 	}
 	pb := NewProgressBarTo(srcPath, size, outPipe)
 	pb.Update(0)
-	_, err = procWriter.Write([]byte(header))
+	_, err = oCH.Write([]byte(header))
 	if err != nil {
 		return err
 	}
 	//TODO buffering
-	_, err = io.Copy(procWriter, fileReader)
+	_, err = io.Copy(oCH, fileReader)
 	if err != nil {
 		return err
 	}
 	// terminate with null byte
-	err = sendByte(procWriter, 0)
+	err = sendByte(oCH, 0)
 	if err != nil {
 		return err
 	}
@@ -212,18 +211,18 @@ func (scp *Scp) sendFile(procWriter io.Writer, srcPath string, srcFileInfo os.Fi
 	}
 	return err
 }
-func (scp *Scp) sendFrom(file string, in, out *Channel) (err error) {
+func (scp *Scp) sendFrom(file string, iCH, oCH *Channel) (err error) {
 	file, host, user, err := parseTarget(file)
 	if err != nil {
 		return
 	}
 	if host != "" {
-		err = scp.sendFromRemote(file, user, host, in, out)
+		err = scp.sendFromRemote(file, user, host, iCH, oCH)
 		if err != nil {
 			return
 		}
 	} else {
-		err = scp.sendFromLocal(file, in, out)
+		err = scp.sendFromLocal(file, iCH, oCH)
 		if err != nil {
 			return
 		}
