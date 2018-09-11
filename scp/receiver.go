@@ -25,28 +25,26 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 	errPipe := scp.Stderr
 	dstFileInfo, e := os.Stat(dstFile)
 	dstDir := dstFile
-	var dstFileNotExist bool
+	dstName := ""
+	dstFileNotExist := false
 	if e != nil {
 		if !os.IsNotExist(e) {
 			return e
 		}
-		//OK - create file/dir
-		dstFileNotExist = true
 		dstDir = filepath.Dir(dstFile)
+		dstName = filepath.Base(dstFile)
+		dstFileNotExist = true
 	} else if dstFileInfo.IsDir() {
-		//ok - use name of srcFile
-		//dstFile = filepath.Join(dstFile, filepath.Base(srcFile))
 		dstDir = dstFile
-		//MUST use received filename instead
-		//TODO should this be from USR?
 	} else if dstFileInfo.Mode().IsRegular() {
 		dstDir = filepath.Dir(dstFile)
+		dstName = dstFileInfo.Name()
 	}else{
 		return errors.New("spcified file was not dir or regular file!!")
 	}
 	go func() {
 		defer func(){
-			close(rCh)
+			rCh <- nil
 		}()
 		if scp.IsVerbose {
 			scp.Println("Sending null byte")
@@ -77,6 +75,15 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 				if scp.IsVerbose {
 					scp.Printf("Received OK \n")
 				}
+			case 0x1:
+				// scp message
+				br := bufio.NewReader(rd)
+				line, _, err := br.ReadLine()
+				if err != nil {
+					rCh <- err
+					return
+				}
+				scp.Println(string(line))
 			case 'E':
 				//E command: go back out of dir
 				dstDir = filepath.Dir(dstDir)
@@ -165,7 +172,7 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					rCh <- err
 					return
 				}
-				err = scp.receiveFile(rd, cw, dstDir, fs, errPipe)
+				err = scp.receiveFile(rd, cw, dstDir, dstName, fs, errPipe)
 				if err != nil {
 					rCh <- err
 					return
@@ -280,13 +287,20 @@ func (scp *Scp)parseCmd(cmdStr []string) (mode os.FileMode, size int64, filename
 	}
 	return
 }
-func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileSet, outPipe io.Writer) (err error){
+func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, rcvFile *FileSet, outPipe io.Writer) (err error){
 	//C command - file
-	thisDstFile := filepath.Join(dstDir, fs.filename)
+	thisDstFile := ""
+	if dstName == "" {
+		thisDstFile = filepath.Join(dstDir, rcvFile.filename)
+	fmt.Println("thisDstFile1:", thisDstFile)
+	}else{
+		thisDstFile = filepath.Join(dstDir, dstName)
+	fmt.Println("thisDstFile2:", thisDstFile)
+	}
 	if scp.IsVerbose {
 		scp.Println("Creating destination file: ", thisDstFile)
 	}
-	pb := NewProgressBarTo(fs.filename, fs.size, outPipe)
+	pb := NewProgressBarTo(rcvFile.filename, rcvFile.size, outPipe)
 	pb.Update(0)
 
 	//TODO: mode here
@@ -299,8 +313,8 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 	tot := int64(0)
 	lastPercent := int64(0)
 	var rb []byte
-	for tot < fs.size {
-		rest := fs.size - tot
+	for tot < rcvFile.size {
+		rest := rcvFile.size - tot
 		if rest < BUF_SIZE {
 			rb = make([]byte, rest)
 		}else{
@@ -315,14 +329,14 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 			return err
 		}
 		tot += int64(n)
-		percent := (100 * tot) / fs.size
+		percent := (100 * tot) / rcvFile.size
 		if percent > lastPercent {
 			pb.Update(tot)
 		}
 		lastPercent = percent
 	}
 	if scp.IsPreserve{
-		if err := fw.Chmod(fs.mode); err != nil {
+		if err := fw.Chmod(rcvFile.mode); err != nil {
 			return err
 		}
 	}
@@ -342,7 +356,7 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir string, fs *FileS
 		return
 	}
 	if scp.IsPreserve {
-		if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
+		if err := os.Chtimes(thisDstFile, rcvFile.atime, rcvFile.mtime); err != nil {
 			return err
 		}
 	}

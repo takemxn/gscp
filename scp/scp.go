@@ -197,7 +197,7 @@ func (scp *Scp) Exec() (err error) {
 				break
 			}
 		}
-		close(sCh)
+		sCh <-nil
 	}()
 	select{
 	case err = <-sCh:

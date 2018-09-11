@@ -39,7 +39,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 		return
 	}
 	go func(){
-		//io.Copy(w, out)
 		for{
 			buf := make([]byte, BUF_SIZE)
 			n, err := out.Read(buf)
@@ -57,7 +56,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 		}
 	}()
 	go func(){
-		//io.Copy(in, r)
 		for{
 			buf := make([]byte, BUF_SIZE)
 			n, err := r.Read(buf)
@@ -69,8 +67,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 			}
 			_, err = in.Write(buf[:n])
 			if err != nil {
-				fmt.Println(err)
-				fmt.Println("scp write error", err)
+				scp.Println("scp write error", err)
 				return
 			}
 		}
@@ -83,7 +80,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, in, out *Channel) (err e
 	if scp.IsRecursive {
 		remoteOpts += "r"
 	}
-	//TODO should this path (/usr/bin/scp) be configurable?
 	err = s.Run("/usr/bin/scp " + remoteOpts + " " + file)
 	if err != nil {
 		return

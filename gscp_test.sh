@@ -2,8 +2,15 @@
 
 SCPUSER=take
 D=/tmp
+err_h(){
+	set +x
+	script=$0
+	line=$1
+	echo "ERROR:$script:$line:${FUNCNAME[1]}"
+	exit 1
+}
 TEST_REMOTE_TO_LOCAL_1(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
 	head -c 20m /dev/urandom > $D/from/t.txt
@@ -14,7 +21,7 @@ TEST_REMOTE_TO_LOCAL_1(){
 	echo "${FUNCNAME[0]} success"
 }
 TEST_REMOTE_TO_LOCAL_2(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo ${FUNCNAME[0]}
 	init_dir
 	head -c 1m /dev/urandom > $D/from/t.txt
@@ -25,7 +32,7 @@ TEST_REMOTE_TO_LOCAL_2(){
 	echo "${FUNCNAME[0]} success"
 }
 TEST_REMOTE_TO_LOCAL_3(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo ${FUNCNAME[0]}
 	init_dir
 	head -c 200m /dev/urandom > $D/from/t.txt
@@ -40,7 +47,7 @@ TEST_REMOTE_TO_LOCAL_3(){
 	echo "${FUNCNAME[0]} success"
 }
 TEST_REMOTE_TO_LOCAL_4(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo ${FUNCNAME[0]}
 	init_dir
 	head -c 200m /dev/urandom > $D/from/t.txt
@@ -55,7 +62,7 @@ TEST_REMOTE_TO_LOCAL_4(){
 	echo "${FUNCNAME[0]} success"
 }
 TEST_REMOTE_TO_LOCAL_5(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
 	set -x
@@ -67,7 +74,7 @@ TEST_REMOTE_TO_LOCAL_5(){
 	echo "${FUNCNAME[0]} success"
 }
 TEST_REMOTE_TO_LOCAL_6(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
 	set -x
@@ -79,7 +86,7 @@ TEST_REMOTE_TO_LOCAL_6(){
 	echo "${FUNCNAME[0]} success"
 }
 TEST_REMOTE_TO_LOCAL_7(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
 	set -x
@@ -87,14 +94,29 @@ TEST_REMOTE_TO_LOCAL_7(){
 	touch $D/to/t.txt
 	trap '' ERR
 	ERR_MSG=`./gscp -r $SCPUSER@localhost:$D/from/. $D/to/t.txt 2>&1`
-	if [ "${ERR_MSG}" != "Error: \"$D/to/t.txt\": Not a directory" ]; then
+	if [ "${ERR_MSG}" != "gscp: \"$D/to/t.txt\": Not a directory" ]; then
 		return 1
 	fi
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
-test_scp_remote_local(){
-	trap 'set +x;return 1' ERR
+TEST_REMOTE_TO_LOCAL_8(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	mkdir $D/from/ttt
+	touch $D/to/t.txt
+	trap '' ERR
+	ERR_MSG=`./gscp take@localhost:/tmp/from /tmp/to 2>&1`
+	if [ "${ERR_MSG}" != "scp: /tmp/from: not a regular file" ]; then
+		return 1
+	fi
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
+test_scp_remote_to_local(){
+	trap "err_h $LINENO" ERR
 	TEST_REMOTE_TO_LOCAL_1
 	TEST_REMOTE_TO_LOCAL_2
 	TEST_REMOTE_TO_LOCAL_3
@@ -102,6 +124,7 @@ test_scp_remote_local(){
 	TEST_REMOTE_TO_LOCAL_5
 	TEST_REMOTE_TO_LOCAL_6
 	TEST_REMOTE_TO_LOCAL_7
+	TEST_REMOTE_TO_LOCAL_8
 }
 diff_deep(){
 	local A=$1
@@ -114,7 +137,7 @@ diff_deep(){
 	return $?
 }
 TEST_LOCAL_TO_REMOTE_1(){
-	trap 'set +x;return 1' ERR
+	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
 	echo "abc" > $D/from/a.txt
@@ -122,8 +145,8 @@ TEST_LOCAL_TO_REMOTE_1(){
 	diff $D/from/a.txt $D/to/a.txt
 	echo "${FUNCNAME[0]} success"
 }
-test_scp_local_remote(){
-	trap 'set +x;return 1' ERR
+test_scp_local_to_remote(){
+	trap "err_h $LINENO" ERR
 	TEST_LOCAL_TO_REMOTE_1
 	return 0
 }
@@ -139,9 +162,9 @@ init_dir(){
 	mkdir ${D}/from ${D}/to
 }
 main(){
-	trap 'set +x;return 1' ERR
-	test_scp_remote_local
-	#test_scp_local_remote
+	trap "err_h $LINENO" ERR
+	test_scp_remote_to_local
+	#test_scp_local_to_remote
 	#test_scp_remote_remote
 }
 main
