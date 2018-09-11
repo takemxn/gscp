@@ -2,33 +2,46 @@
 
 SCPUSER=take
 D=/tmp
-test_1(){
-	echo TEST_1
+TEST_REMOTE_TO_LOCAL_1(){
+	trap 'set +x;return 1' ERR
+	echo "${FUNCNAME[0]}"
 	init_dir
 	head -c 20m /dev/urandom > $D/from/t.txt
-	./gscp $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
+	set -x
+	./gscp -v $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
 	diff $D/from $D/to
+	set +x
+	echo "${FUNCNAME[0]} success"
 }
-test_2(){
-	echo TEST_2
+TEST_REMOTE_TO_LOCAL_2(){
+	trap 'set +x;return 1' ERR
+	echo ${FUNCNAME[0]}
 	init_dir
 	head -c 1m /dev/urandom > $D/from/t.txt
-	./gscp -r $SCPUSER@localhost:$D/from $D/to
+	set -x
+	./gscp -v -r $SCPUSER@localhost:$D/from $D/to
 	diff $D/from $D/to/from
+	set +x
+	echo "${FUNCNAME[0]} success"
 }
-test_3(){
-	echo TEST_3
+TEST_REMOTE_TO_LOCAL_3(){
+	trap 'set +x;return 1' ERR
+	echo ${FUNCNAME[0]}
 	init_dir
 	head -c 200m /dev/urandom > $D/from/t.txt
 	chmod 777 $D/from/t.txt
 	sleep 2
 	head -c 20m /dev/urandom > $D/from/a.txt
 	echo "def" > $D/from/a.txt
+	set -x
 	./gscp -p -v -r $SCPUSER@localhost:$D/from $D/to
+	set +x
 	diff_deep $D/from $D/to/from
+	echo "${FUNCNAME[0]} success"
 }
-test_4(){
-	echo TEST_4
+TEST_REMOTE_TO_LOCAL_4(){
+	trap 'set +x;return 1' ERR
+	echo ${FUNCNAME[0]}
 	init_dir
 	head -c 200m /dev/urandom > $D/from/t.txt
 	mkdir $D/from/tt
@@ -39,12 +52,56 @@ test_4(){
 	./gscp -p -vr $SCPUSER@localhost:$D/from/* $D/to
 	diff -r $D/from $D/to
 	set +x
+	echo "${FUNCNAME[0]} success"
+}
+TEST_REMOTE_TO_LOCAL_5(){
+	trap 'set +x;return 1' ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	head -c 2m /dev/urandom > $D/from/a.txt
+	head -c 8000 /dev/urandom > $D/from/b.txt
+	./gscp -v $SCPUSER@localhost:$D/from/*.txt $D/to
+	diff $D/from $D/to
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
+TEST_REMOTE_TO_LOCAL_6(){
+	trap 'set +x;return 1' ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	head -c 2m /dev/urandom > $D/from/a.txt
+	head -c 8000 /dev/urandom > $D/from/b.txt
+	./gscp -v $SCPUSER@localhost:$D/from/*.txt $D/to/t.txt
+	diff $D/from/b.txt $D/to/t.txt
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
+TEST_REMOTE_TO_LOCAL_7(){
+	trap 'set +x;return 1' ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	mkdir $D/from/ttt
+	touch $D/to/t.txt
+	trap '' ERR
+	ERR_MSG=`./gscp -r $SCPUSER@localhost:$D/from/. $D/to/t.txt 2>&1`
+	if [ "${ERR_MSG}" != "Error: \"$D/to/t.txt\": Not a directory" ]; then
+		return 1
+	fi
+	set +x
+	echo "${FUNCNAME[0]} success"
 }
 test_scp_remote_local(){
-	test_1
-	test_2
-	test_3
-	test_4
+	trap 'set +x;return 1' ERR
+	TEST_REMOTE_TO_LOCAL_1
+	TEST_REMOTE_TO_LOCAL_2
+	TEST_REMOTE_TO_LOCAL_3
+	TEST_REMOTE_TO_LOCAL_4
+	TEST_REMOTE_TO_LOCAL_5
+	TEST_REMOTE_TO_LOCAL_6
+	TEST_REMOTE_TO_LOCAL_7
 }
 diff_deep(){
 	local A=$1
@@ -56,15 +113,18 @@ diff_deep(){
 	diff A.txt B.txt
 	return $?
 }
-TEST_L_R_1(){
-	echo "TEST_L_R_1"
+TEST_LOCAL_TO_REMOTE_1(){
+	trap 'set +x;return 1' ERR
+	echo "${FUNCNAME[0]}"
 	init_dir
 	echo "abc" > $D/from/a.txt
 	./gscp -r $D/from/a.txt $SCPUSER@localhost:$D/to/.
 	diff $D/from/a.txt $D/to/a.txt
+	echo "${FUNCNAME[0]} success"
 }
 test_scp_local_remote(){
-	TEST_L_R_1
+	trap 'set +x;return 1' ERR
+	TEST_LOCAL_TO_REMOTE_1
 	return 0
 }
 test_scp_remote_remote(){

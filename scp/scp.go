@@ -199,7 +199,10 @@ func (scp *Scp) Exec() (err error) {
 		}
 		close(sCh)
 	}()
-	err = <-rCh
+	select{
+	case err = <-sCh:
+	case err = <-rCh:
+	}
 	return
 }
 func (scp *Scp) Printf(format string, args ...interface{}){

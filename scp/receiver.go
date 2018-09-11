@@ -56,13 +56,7 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 			rCh <- err
 			return
 		}
-		//defer r.Close()
-		//use a scanner for processing individual commands, but not files themselves
 		fs := new(FileSet)
-		first := false
-		//scanner := bufio.NewScanner(rd)
-		//for scanner.Scan() {
-		//	cmdFull := scanner.Text()
 		for {
 			b := make([]byte, 1)
 			n, err := rd.Read(b)
@@ -75,7 +69,7 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 			}
 			cmd := b[0]
 			if scp.IsVerbose {
-				scp.Printf("cmd : [%v]\n", string(cmd))
+				scp.Printf("cmd : [%s](%02x)\n", string(cmd), cmd)
 			}
 			switch cmd {
 			case 0x0:
@@ -117,27 +111,24 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					rCh <- err
 					return
 				}
-				if !scp.IsRecursive && first {
+				if !scp.IsRecursive {
 					rCh <- fmt.Errorf("%q/%q is not aregular file", dstDir, fs.filename)
 					return
 				}
 				fileMode := os.FileMode(uint32(fs.mode))
-				if first {
-					if dstFileNotExist {
-						if scp.IsVerbose {
-							scp.Printf("makdir %q\n", dstDir)
-						}
-						err = os.Mkdir(dstDir, fileMode)
-						if err != nil {
-							rCh <- err
-							return
-						}
-					}else if !dstFileInfo.IsDir(){
-						rCh <- fmt.Errorf("%q: Not a directory", dstDir)
+				if dstFileNotExist {
+					if scp.IsVerbose {
+						scp.Printf("makdir %q\n", dstDir)
+					}
+					err = os.Mkdir(dstDir, fileMode)
+					if err != nil {
+						rCh <- err
 						return
 					}
+				}else if !dstFileInfo.IsDir(){
+					rCh <- fmt.Errorf("%q: Not a directory", dstFile)
+					return
 				}
-				first = false
 				//D command (directory)
 				thisDstFile := filepath.Join(dstDir, fs.filename)
 				err = os.MkdirAll(thisDstFile, fileMode)
