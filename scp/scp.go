@@ -194,14 +194,18 @@ func (scp *Scp) Exec() (err error) {
 			err := scp.sendFrom(v, in, out)
 			if err != nil {
 				sCh <- err
-				break
 			}
 		}
+		in.Write([]byte{0})
 		sCh <-nil
 	}()
-	select{
-	case err = <-sCh:
-	case err = <-rCh:
+	err = <-rCh
+	if err != nil {
+		return err
+	}
+	err = <-sCh
+	if err != nil {
+		return err
 	}
 	return
 }

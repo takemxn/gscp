@@ -44,6 +44,9 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 	}
 	go func() {
 		defer func(){
+			if scp.IsVerbose {
+				scp.Println("local receiver end")
+			}
 			rCh <- nil
 		}()
 		if scp.IsVerbose {
@@ -119,8 +122,10 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					return
 				}
 				if !scp.IsRecursive {
-					rCh <- fmt.Errorf("%q/%q is not aregular file", dstDir, fs.filename)
-					return
+					err := fmt.Errorf("%q/%q is not aregular file", dstDir, fs.filename)
+					scp.Println(err)
+					rCh <- err
+					break
 				}
 				fileMode := os.FileMode(uint32(fs.mode))
 				if dstFileNotExist {
@@ -133,7 +138,9 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 						return
 					}
 				}else if !dstFileInfo.IsDir(){
-					rCh <- fmt.Errorf("%q: Not a directory", dstFile)
+					err := fmt.Errorf("scp: %q: Not a directory", dstFile)
+					scp.Println(err)
+					rCh <- err
 					return
 				}
 				//D command (directory)
@@ -204,7 +211,9 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					return
 				}
 			default :
-				rCh <- fmt.Errorf("Command '%x' NOT implemented\n", cmd)
+				err := fmt.Errorf("Command '%x' NOT implemented\n", cmd)
+				scp.Println(err)
+				rCh <- err
 				return
 			}
 		}

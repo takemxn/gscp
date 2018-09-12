@@ -17,6 +17,8 @@ TEST_REMOTE_TO_LOCAL_1(){
 	set -x
 	./gscp -v $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
 	diff $D/from $D/to
+	./gscp -v $SCPUSER@localhost:$D/from/t.txt $D/to/b.txt
+	diff $D/from/t.txt $D/to/b.txt
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
@@ -94,7 +96,7 @@ TEST_REMOTE_TO_LOCAL_7(){
 	touch $D/to/t.txt
 	trap '' ERR
 	ERR_MSG=`./gscp -r $SCPUSER@localhost:$D/from/. $D/to/t.txt 2>&1`
-	if [ "${ERR_MSG}" != "gscp: \"$D/to/t.txt\": Not a directory" ]; then
+	if [ "${ERR_MSG}" != "scp: \"$D/to/t.txt\": Not a directory" ]; then
 		return 1
 	fi
 	set +x
