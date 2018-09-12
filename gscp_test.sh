@@ -142,9 +142,13 @@ TEST_LOCAL_TO_REMOTE_1(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
-	echo "abc" > $D/from/a.txt
-	./gscp -r $D/from/a.txt $SCPUSER@localhost:$D/to/.
+	set -x
+	head -c 1m /dev/urandom > $D/from/a.txt
+	head -c 200m /dev/urandom > $D/from/b.txt
+	./gscp $D/from/a.txt $SCPUSER@localhost:$D/to/a.txt
 	diff $D/from/a.txt $D/to/a.txt
+	./gscp $D/from/*.txt $SCPUSER@localhost:$D/to/.
+	diff $D/from $D/to
 	echo "${FUNCNAME[0]} success"
 }
 test_scp_local_to_remote(){
@@ -165,8 +169,8 @@ init_dir(){
 }
 main(){
 	trap "err_h $LINENO" ERR
-	test_scp_remote_to_local
-	#test_scp_local_to_remote
+	#test_scp_remote_to_local
+	test_scp_local_to_remote
 	#test_scp_remote_remote
 }
 main

@@ -62,7 +62,9 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 			b := make([]byte, 1)
 			n, err := rd.Read(b)
 			if err != nil {
-				rCh <- err
+				if err != io.EOF {
+					rCh <- err
+				}
 				return
 			}
 			if n == 0 {
@@ -267,7 +269,6 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 			buf := make([]byte, BUF_SIZE)
 			n, err := out.Read(buf)
 			if err != nil {
-				rCh <- err
 				if err == io.EOF{
 					w.Close()
 				}else{
@@ -292,8 +293,7 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 	}
 	go func(){
 		defer s.Close()
-		s.Run("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
-		rCh <- nil
+		rCh <- s.Run("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
 	}()
 	return
 }

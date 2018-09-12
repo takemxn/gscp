@@ -40,9 +40,11 @@ func (ch *Channel) Read(p []byte) (n int, err error){
 			n := copy(p, b)
 			ch.buffer = b[n:]
 			return n, nil
+		}else{
+			return 0, io.EOF
 		}
 	}
-	return 0, nil
+	return
 }
 func (ch *Channel) Close() (err error){
 	select {
@@ -194,7 +196,7 @@ func (scp *Scp) Exec() (err error) {
 				sCh <- err
 			}
 		}
-		out.Write([]byte("\n"))
+		out.Close()
 		sCh <-nil
 	}()
 	err = <-rCh
