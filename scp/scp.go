@@ -186,8 +186,6 @@ func (scp *Scp) Exec() (err error) {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	defer out.Close()
 	sCh := make(chan error, 1)
 	go func(){
 		for _, v := range scp.args[0 : len(scp.args)-1] {
@@ -196,7 +194,7 @@ func (scp *Scp) Exec() (err error) {
 				sCh <- err
 			}
 		}
-		in.Write([]byte{0})
+		out.Write([]byte("\n"))
 		sCh <-nil
 	}()
 	err = <-rCh

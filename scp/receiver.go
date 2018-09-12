@@ -86,7 +86,8 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					rCh <- err
 					return
 				}
-				scp.Println(string(line))
+				rCh <- errors.New(string(line))
+				return
 			case 'E':
 				//E command: go back out of dir
 				dstDir = filepath.Dir(dstDir)
@@ -122,9 +123,7 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					return
 				}
 				if !scp.IsRecursive {
-					err := fmt.Errorf("%q/%q is not aregular file", dstDir, fs.filename)
-					scp.Println(err)
-					rCh <- err
+					rCh <- fmt.Errorf("scp: %q/%q is not aregular file", dstDir, fs.filename)
 					break
 				}
 				fileMode := os.FileMode(uint32(fs.mode))
@@ -138,9 +137,7 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 						return
 					}
 				}else if !dstFileInfo.IsDir(){
-					err := fmt.Errorf("scp: %q: Not a directory", dstFile)
-					scp.Println(err)
-					rCh <- err
+					rCh <- fmt.Errorf("scp: %q: Not a directory", dstFile)
 					return
 				}
 				//D command (directory)
@@ -211,9 +208,9 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					return
 				}
 			default :
-				err := fmt.Errorf("Command '%x' NOT implemented\n", cmd)
-				scp.Println(err)
-				rCh <- err
+				if scp.IsVerbose{
+					rCh <- fmt.Errorf("scp: Command '%x' NOT implemented\n", cmd)
+				}
 				return
 			}
 		}
@@ -252,12 +249,15 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 			if err != nil {
 				if err == io.EOF {
 					in.Close()
+				}else{
+					rCh <- err
 				}
 				return
 			}
+			//fmt.Printf("\nfrom scp :[%q]\n", string(buf[:n]))
 			_, err = in.Write(buf[:n])
 			if err != nil {
-				scp.Println("scp write error", err)
+				rCh <- err
 				return
 			}
 		}
@@ -267,30 +267,33 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 			buf := make([]byte, BUF_SIZE)
 			n, err := out.Read(buf)
 			if err != nil {
+				rCh <- err
 				if err == io.EOF{
 					w.Close()
+				}else{
+					rCh <- err
 				}
 				return
 			}
+			//fmt.Printf("\nto scp :[%q]", string(buf[:n]))
 			_, err = w.Write(buf[:n])
 			if err != nil {
-				fmt.Println(err)
+				rCh <- err
 				return
 			}
 		}
 	}()
-	remoteOpts := "-pt"
-	if scp.IsQuiet {
-		remoteOpts += "q"
+	remoteOpts := "-qt"
+	if scp.IsPreserve{
+		remoteOpts += "p"
 	}
 	if scp.IsRecursive {
 		remoteOpts += "r"
 	}
 	go func(){
-		err = s.Run("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
-		if err != nil {
-			rCh <- err
-		}
+		defer s.Close()
+		s.Run("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
+		rCh <- nil
 	}()
 	return
 }

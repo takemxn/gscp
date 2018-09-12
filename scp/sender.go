@@ -73,9 +73,9 @@ func (scp *Scp) sendFromRemote(file, user, host string, iCH, oCH *Channel) (err 
 		}
 	}()
 	go io.Copy(scp.Stderr, e)
-	remoteOpts := "-pf"
-	if scp.IsQuiet {
-		remoteOpts += "q"
+	remoteOpts := "-qf"
+	if scp.IsPreserve{
+		remoteOpts += "p"
 	}
 	if scp.IsRecursive {
 		remoteOpts += "r"
@@ -92,7 +92,6 @@ func (scp *Scp) sendFromLocal(srcFile string, iCH, oCH *Channel) (err error) {
 	outPipe := scp.Stdout
 	srcFileInfo, err := os.Stat(srcFile)
 	if err != nil {
-		fmt.Println( "Could not stat source file "+srcFile)
 		return err
 	}
 	if scp.IsRecursive {
@@ -188,20 +187,26 @@ func (scp *Scp) sendFile(iCH io.Reader, oCH io.Writer, srcPath string, srcFileIn
 	if err != nil {
 		return err
 	}
-	//TODO buffering
+	b := make([]byte, 1)
+	_, err = iCH.Read(b)
+	if err != nil {
+		return err
+	}
 	_, err = io.Copy(oCH, fileReader)
 	if err != nil {
 		return err
 	}
-	// terminate with null byte
-	err = sendByte(oCH, 0)
+	err = fileReader.Close()
+	if scp.IsVerbose {
+		fmt.Println( "Sent file.")
+	}
+	_, err = iCH.Read(b)
 	if err != nil {
 		return err
 	}
-
-	err = fileReader.Close()
-	if scp.IsVerbose {
-		fmt.Println( "Sent file plus null-byte.")
+	err = sendByte(oCH, 0)
+	if err != nil {
+		return err
 	}
 	pb.Update(size)
 	fmt.Fprintln(errPipe)
