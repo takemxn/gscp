@@ -142,9 +142,10 @@ TEST_LOCAL_TO_REMOTE_1(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
+	for ((i=0;$i<3278;i++)); do
+		echo "0123456789" >> $D/from/a.txt
+	done
 	set -x
-	head -c 1m /dev/urandom > $D/from/a.txt
-	head -c 200m /dev/urandom > $D/from/b.txt
 	./gscp $D/from/a.txt $SCPUSER@localhost:$D/to/a.txt
 	diff $D/from/a.txt $D/to/a.txt
 	./gscp $D/from/*.txt $SCPUSER@localhost:$D/to/.

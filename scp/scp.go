@@ -22,7 +22,7 @@ type Channel struct {
 }
 func NewChannel() *Channel{
 	ch := &Channel{}
-	ch.ch = make(chan []byte)
+	ch.ch = make(chan []byte, 1)
 	return ch
 }
 func (ch *Channel) Write(p []byte) (n int, err error){

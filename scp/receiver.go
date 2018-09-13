@@ -245,8 +245,8 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 		return err
 	}
 	go func(){
+		buf := make([]byte, BUF_SIZE)
 		for{
-			buf := make([]byte, BUF_SIZE)
 			n, err := r.Read(buf)
 			if err != nil {
 				if err == io.EOF {
@@ -256,7 +256,11 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 				}
 				return
 			}
-			//fmt.Printf("\nfrom scp :[%q]\n", string(buf[:n]))
+			if n > 30 {
+				fmt.Printf("\nfrom scp :[%q]\n", string(buf[:30]))
+			}else{
+				fmt.Printf("\nfrom scp :[%q]\n", string(buf[:n]))
+			}
 			_, err = in.Write(buf[:n])
 			if err != nil {
 				rCh <- err
@@ -265,8 +269,8 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 		}
 	}()
 	go func(){
+		buf := make([]byte, BUF_SIZE)
 		for{
-			buf := make([]byte, BUF_SIZE)
 			n, err := out.Read(buf)
 			if err != nil {
 				if err == io.EOF{
@@ -276,12 +280,26 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 				}
 				return
 			}
-			//fmt.Printf("\nto scp :[%q]", string(buf[:n]))
+			if n > 30 {
+				fmt.Printf("\nto scp :[%q]\n", string(buf[:30]))
+			}else{
+				fmt.Printf("\nto scp :[%q]\n", string(buf[:n]))
+			}
 			_, err = w.Write(buf[:n])
 			if err != nil {
 				rCh <- err
 				return
 			}
+			/*
+			for i:=0;i < n;{
+				wn, err := w.Write(buf[i:n])
+				if err != nil {
+					rCh <- err
+					return
+				}
+				i += wn
+			}
+			*/
 		}
 	}()
 	remoteOpts := "-qt"
