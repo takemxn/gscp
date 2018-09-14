@@ -1,6 +1,7 @@
 #!/bin/bash
 
-SCPUSER=take
+SCPUSER1=take
+SCPUSER2=t
 D=/tmp
 err_h(){
 	set +x
@@ -13,11 +14,11 @@ TEST_REMOTE_TO_LOCAL_1(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
-	head -c 20m /dev/urandom > $D/from/t.txt
+	head -c 500000 /dev/urandom > $D/from/t.txt
 	set -x
-	./gscp -v $SCPUSER@localhost:$D/from/t.txt $D/to/t.txt
+	./gscp -v $SCPUSER1@localhost:$D/from/t.txt $D/to/t.txt
 	diff $D/from $D/to
-	./gscp -v $SCPUSER@localhost:$D/from/t.txt $D/to/b.txt
+	./gscp -v $SCPUSER1@localhost:$D/from/t.txt $D/to/b.txt
 	diff $D/from/t.txt $D/to/b.txt
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -28,7 +29,7 @@ TEST_REMOTE_TO_LOCAL_2(){
 	init_dir
 	head -c 1m /dev/urandom > $D/from/t.txt
 	set -x
-	./gscp -v -r $SCPUSER@localhost:$D/from $D/to
+	./gscp -v -r $SCPUSER1@localhost:$D/from $D/to
 	diff $D/from $D/to/from
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -40,10 +41,10 @@ TEST_REMOTE_TO_LOCAL_3(){
 	head -c 200m /dev/urandom > $D/from/t.txt
 	chmod 777 $D/from/t.txt
 	sleep 2
-	head -c 20m /dev/urandom > $D/from/a.txt
+	head -c 600000 /dev/urandom > $D/from/a.txt
 	echo "def" > $D/from/a.txt
 	set -x
-	./gscp -p -v -r $SCPUSER@localhost:$D/from $D/to
+	./gscp -p -v -r $SCPUSER1@localhost:$D/from $D/to
 	set +x
 	diff_deep $D/from $D/to/from
 	echo "${FUNCNAME[0]} success"
@@ -58,7 +59,7 @@ TEST_REMOTE_TO_LOCAL_4(){
 	head -c 14098 /dev/urandom > $D/from/tt/tt.txt
 	sleep 2
 	set -x
-	./gscp -p -vr $SCPUSER@localhost:$D/from/* $D/to
+	./gscp -p -vr $SCPUSER1@localhost:$D/from/* $D/to
 	diff -r $D/from $D/to
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -70,7 +71,7 @@ TEST_REMOTE_TO_LOCAL_5(){
 	set -x
 	head -c 2m /dev/urandom > $D/from/a.txt
 	head -c 8000 /dev/urandom > $D/from/b.txt
-	./gscp -v $SCPUSER@localhost:$D/from/*.txt $D/to
+	./gscp -v $SCPUSER1@localhost:$D/from/*.txt $D/to
 	diff $D/from $D/to
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -82,7 +83,7 @@ TEST_REMOTE_TO_LOCAL_6(){
 	set -x
 	head -c 2m /dev/urandom > $D/from/a.txt
 	head -c 8000 /dev/urandom > $D/from/b.txt
-	./gscp -v $SCPUSER@localhost:$D/from/*.txt $D/to/t.txt
+	./gscp -v $SCPUSER1@localhost:$D/from/*.txt $D/to/t.txt
 	diff $D/from/b.txt $D/to/t.txt
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -95,7 +96,7 @@ TEST_REMOTE_TO_LOCAL_7(){
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
-	ERR_MSG=`./gscp -r $SCPUSER@localhost:$D/from/. $D/to/t.txt 2>&1`
+	ERR_MSG=`./gscp -r $SCPUSER1@localhost:$D/from/. $D/to/t.txt 2>&1`
 	if [ "${ERR_MSG}" != "scp: \"$D/to/t.txt\": Not a directory" ]; then
 		return 1
 	fi
@@ -146,9 +147,9 @@ TEST_LOCAL_TO_REMOTE_1(){
 		echo "${i} 012345678901234567890123456789012345678901234567890123456789" >> $D/from/a.txt
 	done
 	set -x
-	./gscp $D/from/a.txt $SCPUSER@localhost:$D/to/a.txt
+	./gscp $D/from/a.txt $SCPUSER1@localhost:$D/to/a.txt
 	diff $D/from/a.txt $D/to/a.txt
-	./gscp $D/from/*.txt $SCPUSER@localhost:$D/to/.
+	./gscp $D/from/*.txt $SCPUSER1@localhost:$D/to/.
 	diff $D/from $D/to
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -162,8 +163,8 @@ TEST_LOCAL_TO_REMOTE_2(){
 	echo ttt > $D/from/t.txt
 	echo ccc > $D/from/ttt/ccc.txt
 	head -c 20m /dev/urandom > $D/from/random.bin
-	./gscp -r $D/from $SCPUSER@localhost:$D/to
-	diff $D/from $D/to/from
+	./gscp -r $D/from $SCPUSER1@localhost:$D/to
+	diff -r $D/from $D/to/from
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
@@ -173,8 +174,19 @@ test_scp_local_to_remote(){
 	TEST_LOCAL_TO_REMOTE_2
 	return 0
 }
+TEST_REMOTE_TO_REMOTE_1(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	head -c 20m /dev/urandom > $D/from/random.bin
+	./gscp $SCPUSER2@localhost:$D/from/random.bin $SCPUSER1@localhost:$D/to
+	diff $D/from/random.bin $D/to
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
 test_scp_remote_remote(){
-	return 0
+	TEST_REMOTE_TO_REMOTE_1
 }
 rm_dir(){
 	rm -rf $D/from
@@ -187,7 +199,7 @@ init_dir(){
 main(){
 	trap "err_h $LINENO" ERR
 	#test_scp_remote_to_local
-	test_scp_local_to_remote
-	#test_scp_remote_remote
+	#test_scp_local_to_remote
+	test_scp_remote_remote
 }
 main
