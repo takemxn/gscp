@@ -6,10 +6,20 @@ import (
 	com "github.com/takemxn/gssh/common"
 	"os"
 	"io"
-	"bufio"
 )
+func readExpect(r io.Reader, expect byte)(err error){
+	b := make([]byte, 1)
+	_, err = r.Read(b)
+	if err != nil {
+		return
+	}
+	if b[0] != expect {
+		err = fmt.Errorf("not expected receive:%v", b)
+	}
+	return
+}
 
-func (scp *Scp) sendFromRemote(file, user, host string, iCH, oCH *Channel) (err error) {
+func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer io.WriteCloser) (err error) {
 	password := scp.Password
 	if password == "" {
 		password = scp.config.GetPassword(user, host, scp.Port)
@@ -42,7 +52,24 @@ func (scp *Scp) sendFromRemote(file, user, host string, iCH, oCH *Channel) (err 
 	go func(){
 		for{
 			buf := make([]byte, BUF_SIZE)
-			n, err := oCH.Read(buf)
+			n, err := r.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					writer.Close()
+				}
+				return
+			}
+			_, err = writer.Write(buf[:n])
+			if err != nil {
+				scp.Println("scp write error", err)
+				return
+			}
+		}
+	}()
+	go func(){
+		for{
+			buf := make([]byte, BUF_SIZE)
+			n, err := reader.Read(buf)
 			if err != nil {
 				if err == io.EOF{
 					w.Close()
@@ -52,23 +79,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, iCH, oCH *Channel) (err 
 			_, err = w.Write(buf[:n])
 			if err != nil {
 				fmt.Println(err)
-				return
-			}
-		}
-	}()
-	go func(){
-		for{
-			buf := make([]byte, BUF_SIZE)
-			n, err := r.Read(buf)
-			if err != nil {
-				if err == io.EOF {
-					iCH.Close()
-				}
-				return
-			}
-			_, err = iCH.Write(buf[:n])
-			if err != nil {
-				scp.Println("scp write error", err)
 				return
 			}
 		}
@@ -88,37 +98,25 @@ func (scp *Scp) sendFromRemote(file, user, host string, iCH, oCH *Channel) (err 
 	s.Close()
 	return
 }
-func (ch *Channel)readExpect(expect byte)(err error){
-	b := make([]byte, 1)
-	_, err = ch.Read(b)
-	if err != nil {
-		return
-	}
-	if b[0] != expect {
-		err = fmt.Errorf("not expected receive:%v", b)
-	}
-	return
-}
-func (scp *Scp) sendFromLocal(srcFile string, iCH, oCH *Channel) (err error) {
+func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer) (err error) {
 	errPipe := scp.Stderr
 	outPipe := scp.Stdout
 	srcFileInfo, err := os.Stat(srcFile)
 	if err != nil {
 		return err
 	}
-	err = iCH.readExpect(0)
+	err = readExpect(reader, 0)
 	if err != nil {
 		return err
 	}
-	writer := bufio.NewWriter(oCH)
 	if scp.IsRecursive {
 		if srcFileInfo.IsDir() {
-			err = scp.processDir(iCH, oCH, srcFile, srcFileInfo, outPipe, errPipe)
+			err = scp.processDir(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
 				fmt.Println( err.Error())
 			}
 		} else {
-			err = scp.sendFile(iCH, oCH, srcFile, srcFileInfo, outPipe, errPipe)
+			err = scp.sendFile(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
 				fmt.Println( err.Error())
 			}
@@ -127,17 +125,16 @@ func (scp *Scp) sendFromLocal(srcFile string, iCH, oCH *Channel) (err error) {
 		if srcFileInfo.IsDir() {
 			return
 		} else {
-			err = scp.sendFile(iCH, oCH, srcFile, srcFileInfo, outPipe, errPipe)
+			err = scp.sendFile(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
 				fmt.Println( err.Error())
 			}
 		}
 	}
-	writer.Flush()
 	return
 }
-func (scp *Scp) processDir(iCH *Channel, oCH io.Writer, srcFilePath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
-	err := scp.sendDir(iCH, oCH, srcFilePath, srcFileInfo, errPipe)
+func (scp *Scp) processDir(reader io.Reader, writer io.Writer, srcFilePath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
+	err := scp.sendDir(reader, writer, srcFilePath, srcFileInfo, errPipe)
 	if err != nil {
 		return err
 	}
@@ -151,42 +148,42 @@ func (scp *Scp) processDir(iCH *Channel, oCH io.Writer, srcFilePath string, srcF
 	}
 	for _, fi := range fis {
 		if fi.IsDir() {
-			err = scp.processDir(iCH, oCH, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
+			err = scp.processDir(reader, writer, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
 			if err != nil {
 				return err
 			}
 		} else {
-			err = scp.sendFile(iCH, oCH, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
+			err = scp.sendFile(reader, writer, filepath.Join(srcFilePath, fi.Name()), fi, outPipe, errPipe)
 			if err != nil {
 				return err
 			}
 		}
 	}
 	//TODO process errors
-	err = scp.sendEndDir(iCH, oCH, errPipe)
+	err = scp.sendEndDir(reader, writer, errPipe)
 	return err
 }
 
-func (scp *Scp) sendEndDir(iCH io.Reader, oCH io.Writer, errPipe io.Writer) error {
+func (scp *Scp) sendEndDir(reader io.Reader, writer io.Writer, errPipe io.Writer) error {
 	header := fmt.Sprintf("E\n")
 	if scp.IsVerbose {
 		fmt.Fprintf(errPipe, "Sending end dir: %s", header)
 	}
-	_, err := oCH.Write([]byte(header))
+	_, err := writer.Write([]byte(header))
 	return err
 }
 
-func (scp *Scp) sendDir(iCH io.Reader, oCH io.Writer, srcPath string, srcFileInfo os.FileInfo, errPipe io.Writer) error {
+func (scp *Scp) sendDir(reader io.Reader, writer io.Writer, srcPath string, srcFileInfo os.FileInfo, errPipe io.Writer) error {
 	mode := uint32(srcFileInfo.Mode().Perm())
 	header := fmt.Sprintf("D%04o 0 %s\n", mode, filepath.Base(srcPath))
 	if scp.IsVerbose {
 		fmt.Fprintf(errPipe, "Sending Dir header : %s", header)
 	}
-	_, err := oCH.Write([]byte(header))
+	_, err := writer.Write([]byte(header))
 	return err
 }
 
-func (scp *Scp) sendFile(iCH *Channel, oCH io.Writer, srcPath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
+func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
 	//single file
 	mode := uint32(srcFileInfo.Mode().Perm())
 	fileReader, err := os.Open(srcPath)
@@ -203,42 +200,26 @@ func (scp *Scp) sendFile(iCH *Channel, oCH io.Writer, srcPath string, srcFileInf
 	if !scp.IsQuiet {
 		pb.Update(0)
 	}
-	_, err = oCH.Write([]byte(header))
+	_, err = writer.Write([]byte(header))
 	if err != nil {
 		return err
 	}
-	err = iCH.readExpect(0)
+	err = readExpect(reader, 0)
 	if err != nil {
 		return err
 	}
-	buf := make([]byte, BUF_SIZE)
-	for{
-		n, err := fileReader.Read(buf)
-		if err != nil {
-			if err == io.EOF{
-				break
-			}
-			return err
-		}
-		_, err = oCH.Write(buf[:n])
-		if err != nil {
-			return err
-		}
-	}
-	/*
-	_, err = io.Copy(oCH, fileReader)
+	_, err = io.Copy(writer, fileReader)
 	if err != nil {
 		return err
 	}
-	*/
 	if scp.IsVerbose {
 		fmt.Println( "Sent file.")
 	}
-	err = sendByte(oCH, 0)
+	err = sendByte(writer, 0)
 	if err != nil {
 		return err
 	}
-	err = iCH.readExpect(0)
+	err = readExpect(reader, 0)
 	if err != nil {
 		return err
 	}
@@ -252,18 +233,18 @@ func (scp *Scp) sendFile(iCH *Channel, oCH io.Writer, srcPath string, srcFileInf
 	}
 	return err
 }
-func (scp *Scp) sendFrom(file string, iCH, oCH *Channel) (err error) {
+func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (err error) {
 	file, host, user, err := parseTarget(file)
 	if err != nil {
 		return
 	}
 	if host != "" {
-		err = scp.sendFromRemote(file, user, host, iCH, oCH)
+		err = scp.sendFromRemote(file, user, host, reader, writer)
 		if err != nil {
 			return
 		}
 	} else {
-		err = scp.sendFromLocal(file, iCH, oCH)
+		err = scp.sendFromLocal(file, reader, writer)
 		if err != nil {
 			return
 		}

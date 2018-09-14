@@ -219,7 +219,7 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 	}()
 	return
 }
-func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error) {
+func (scp *Scp) openRemoteReceiver(rCh chan error) (r io.Reader, w io.WriteCloser, err error) {
 	password := scp.Password
 	if password == "" {
 		password = scp.config.GetPassword(scp.dstUser,  scp.dstHost, scp.Port)
@@ -228,80 +228,22 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 	conn, err := ci.Connect()
 	if err != nil {
 		scp.Printf("unable to create session: %s", err)
-		return err
+		return
 	}
 	s, err := conn.NewSession()
 	if err != nil {
-		return err
+		return
 	} else if scp.IsVerbose {
 		scp.Println("Got receiver session")
 	}
-	w, err := s.StdinPipe()
+	w, err = s.StdinPipe()
 	if err != nil {
-		return err
+		return
 	}
-	r, err := s.StdoutPipe()
+	r, err = s.StdoutPipe()
 	if err != nil {
-		return err
+		return
 	}
-	go func(){
-		buf := make([]byte, BUF_SIZE)
-		for{
-			n, err := r.Read(buf)
-			if err != nil {
-				if err == io.EOF {
-					in.Close()
-				}else{
-					rCh <- err
-				}
-				return
-			}
-			if n > 30 {
-				fmt.Printf("\nfrom scp :[%q]\n", string(buf[:30]))
-			}else{
-				fmt.Printf("\nfrom scp :[%q]\n", string(buf[:n]))
-			}
-			_, err = in.Write(buf[:n])
-			if err != nil {
-				rCh <- err
-				return
-			}
-		}
-	}()
-	go func(){
-		buf := make([]byte, BUF_SIZE)
-		for{
-			n, err := out.Read(buf)
-			if err != nil {
-				if err == io.EOF{
-					w.Close()
-				}else{
-					rCh <- err
-				}
-				return
-			}
-			if n > 30 {
-				fmt.Printf("\nto scp :[%q]\n", string(buf[:30]))
-			}else{
-				fmt.Printf("\nto scp :[%q]\n", string(buf[:n]))
-			}
-			_, err = w.Write(buf[:n])
-			if err != nil {
-				rCh <- err
-				return
-			}
-			/*
-			for i:=0;i < n;{
-				wn, err := w.Write(buf[i:n])
-				if err != nil {
-					rCh <- err
-					return
-				}
-				i += wn
-			}
-			*/
-		}
-	}()
 	remoteOpts := "-qt"
 	if scp.IsPreserve{
 		remoteOpts += "p"
@@ -313,22 +255,6 @@ func (scp *Scp) openRemoteReceiver(in, out *Channel, rCh chan error) (err error)
 		defer s.Close()
 		rCh <- s.Run("/usr/bin/scp " + remoteOpts + " " + scp.dstFile)
 	}()
-	return
-}
-func (scp *Scp) openReceiver(rCh chan error) (in *Channel, out *Channel, err error) {
-	in = NewChannel()
-	out = NewChannel()
-	if scp.dstHost != "" {
-		err = scp.openRemoteReceiver(in, out, rCh)
-		if err != nil {
-			return nil, nil, err
-		}
-	} else {
-		err = scp.openLocalReceiver(in, out, rCh)
-		if err != nil {
-			return
-		}
-	}
 	return
 }
 func (scp *Scp)parseCmd(cmdStr []string) (mode os.FileMode, size int64, filename string, err error){

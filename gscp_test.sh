@@ -143,18 +143,34 @@ TEST_LOCAL_TO_REMOTE_1(){
 	echo "${FUNCNAME[0]}"
 	init_dir
 	for ((i=0;$i<3278;i++)); do
-		echo "0123456789" >> $D/from/a.txt
+		echo "${i} 012345678901234567890123456789012345678901234567890123456789" >> $D/from/a.txt
 	done
 	set -x
 	./gscp $D/from/a.txt $SCPUSER@localhost:$D/to/a.txt
 	diff $D/from/a.txt $D/to/a.txt
 	./gscp $D/from/*.txt $SCPUSER@localhost:$D/to/.
 	diff $D/from $D/to
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
+TEST_LOCAL_TO_REMOTE_2(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	mkdir $D/from/ttt
+	echo ttt > $D/from/t.txt
+	echo ccc > $D/from/ttt/ccc.txt
+	head -c 20m /dev/urandom > $D/from/random.bin
+	./gscp -r $D/from $SCPUSER@localhost:$D/to
+	diff $D/from $D/to/from
+	set +x
 	echo "${FUNCNAME[0]} success"
 }
 test_scp_local_to_remote(){
 	trap "err_h $LINENO" ERR
 	TEST_LOCAL_TO_REMOTE_1
+	TEST_LOCAL_TO_REMOTE_2
 	return 0
 }
 test_scp_remote_remote(){

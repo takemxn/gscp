@@ -19,10 +19,14 @@ const (
 type Channel struct {
 	ch chan []byte
 	buffer []byte
+	name string
+	reader io.Reader
+	writer io.WriteCloser
 }
-func NewChannel() *Channel{
+func NewChannel(name string) *Channel{
 	ch := &Channel{}
-	ch.ch = make(chan []byte, 1)
+	ch.ch = make(chan []byte)
+	ch.name = name
 	return ch
 }
 func (ch *Channel) Write(p []byte) (n int, err error){
@@ -184,21 +188,43 @@ func (scp *Scp) Exec() (err error) {
 		return err
 	}
 	rCh := make(chan error, 1)
-	in, out, err := scp.openReceiver(rCh)
-	if err != nil {
-		return err
-	}
 	sCh := make(chan error, 1)
-	go func(){
-		for _, v := range scp.args[0 : len(scp.args)-1] {
-			err := scp.sendFrom(v, in, out)
-			if err != nil {
-				sCh <- err
-			}
+	if scp.dstHost != "" {
+		// copy to remote
+		r, w, err := scp.openRemoteReceiver(rCh)
+		if err != nil {
+			sCh <- err
+			return err
 		}
-		out.Close()
-		sCh <-nil
-	}()
+		go func(){
+			for _, v := range scp.args[0 : len(scp.args)-1] {
+				err = scp.sendFrom(v, r, w)
+				if err != nil {
+					sCh <- err
+				}
+			}
+			w.Close()
+			sCh <-nil
+		}()
+	}else{
+		// copy to local
+		in := NewChannel("in channel")
+		out := NewChannel("out channel")
+		err = scp.openLocalReceiver(in, out, rCh)
+		if err != nil {
+			return
+		}
+		go func(){
+			for _, v := range scp.args[0 : len(scp.args)-1] {
+				err = scp.sendFrom(v, out, in)
+				if err != nil {
+					sCh <- err
+				}
+			}
+			out.Close()
+			sCh <-nil
+		}()
+	}
 	err = <-rCh
 	if err != nil {
 		return err
