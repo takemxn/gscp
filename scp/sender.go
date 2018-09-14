@@ -60,9 +60,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 			buf := make([]byte, BUF_SIZE)
 			n, err := r.Read(buf)
 			if err != nil {
-				if err == io.EOF {
-					writer.Close()
-				}
 				return
 			}
 			_, err = writer.Write(buf[:n])
@@ -79,9 +76,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 			buf := make([]byte, BUF_SIZE)
 			n, err := reader.Read(buf)
 			if err != nil {
-				if err == io.EOF{
-					w.Close()
-				}
 				return
 			}
 			_, err = w.Write(buf[:n])

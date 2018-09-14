@@ -111,6 +111,7 @@ func (scp *Scp) ParseFlags(call []string, errPipe io.Writer) error {
 	return nil
 }
 
+
 //TODO: error for multiple ats or multiple colons
 func parseTarget(target string) (string, string, string, error) {
 	//treat windows drive refs as local
@@ -218,7 +219,7 @@ func (scp *Scp) Exec() (err error) {
 					return
 				}
 			}
-			out.Close()
+			in.Close()
 		}()
 	}
 	err = <-rCh
