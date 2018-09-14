@@ -62,9 +62,10 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 			b := make([]byte, 1)
 			n, err := rd.Read(b)
 			if err != nil {
-				if err != io.EOF {
-					rCh <- err
+				if err == io.EOF {
+					return
 				}
+				rCh <- err
 				return
 			}
 			if n == 0 {
@@ -112,7 +113,6 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 					rCh <- err
 					return
 				}
-				return
 			case 'D':
 				parts, err := scp.parseCmdLine(rd)
 				if err != nil {
@@ -181,6 +181,10 @@ func (scp *Scp) openLocalReceiver(rd *Channel, cw *Channel, rCh chan error) (err
 				err = scp.receiveFile(rd, cw, dstDir, dstName, fs, errPipe)
 				if err != nil {
 					rCh <- err
+					return
+				}
+				_, err = cw.Write([]byte{0})
+				if err != nil {
 					return
 				}
 			case 'T':
@@ -333,16 +337,6 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	}
 	//close file writer & check error
 	err = fw.Close()
-	if err != nil {
-		return
-	}
-	_, err = cw.Write([]byte{0})
-	if err != nil {
-		return
-	}
-	//get next byte from channel reader
-	b := make([]byte, 1)
-	_, err = rd.Read(b)
 	if err != nil {
 		return
 	}

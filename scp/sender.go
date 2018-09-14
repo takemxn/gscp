@@ -250,12 +250,14 @@ func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (
 		if err != nil {
 			return
 		}
+		wg.Wait()
+		writer.Write([]byte{0x0A})
 	} else {
 		err = scp.sendFromLocal(file, reader, writer)
 		if err != nil {
 			return
 		}
+		wg.Wait()
 	}
-	wg.Wait()
 	return
 }
