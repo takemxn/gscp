@@ -198,10 +198,11 @@ func (scp *Scp) Exec() (err error) {
 		}
 		go func(){
 			for _, v := range scp.args[0 : len(scp.args)-1] {
-				err = scp.sendFrom(v, r, w)
+				wg, err := scp.sendFrom(v, r, w)
 				if err != nil {
 					sCh <- err
 				}
+				wg.Wait()
 			}
 			w.Close()
 			sCh <-nil
@@ -216,10 +217,11 @@ func (scp *Scp) Exec() (err error) {
 		}
 		go func(){
 			for _, v := range scp.args[0 : len(scp.args)-1] {
-				err = scp.sendFrom(v, out, in)
+				wg, err := scp.sendFrom(v, out, in)
 				if err != nil {
 					sCh <- err
 				}
+				wg.Wait()
 			}
 			out.Close()
 			sCh <-nil

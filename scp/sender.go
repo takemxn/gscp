@@ -6,6 +6,10 @@ import (
 	com "github.com/takemxn/gssh/common"
 	"os"
 	"io"
+	"sync"
+)
+var(
+	wg sync.WaitGroup
 )
 func readExpect(r io.Reader, expect byte)(err error){
 	b := make([]byte, 1)
@@ -50,6 +54,8 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 		return
 	}
 	go func(){
+		defer wg.Done()
+		wg.Add(1)
 		for{
 			buf := make([]byte, BUF_SIZE)
 			n, err := r.Read(buf)
@@ -67,6 +73,8 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 		}
 	}()
 	go func(){
+		defer wg.Done()
+		wg.Add(1)
 		for{
 			buf := make([]byte, BUF_SIZE)
 			n, err := reader.Read(buf)
@@ -83,7 +91,11 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 			}
 		}
 	}()
-	go io.Copy(scp.Stderr, e)
+	go func(){
+		defer wg.Done()
+		wg.Add(1)
+		io.Copy(scp.Stderr, e)
+	}()
 	remoteOpts := "-qf"
 	if scp.IsPreserve{
 		remoteOpts += "p"
@@ -233,7 +245,8 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	}
 	return err
 }
-func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (err error) {
+func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (w sync.WaitGroup, err error) {
+	w = wg
 	file, host, user, err := parseTarget(file)
 	if err != nil {
 		return

@@ -288,7 +288,9 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 		scp.Println("Creating destination file: ", thisDstFile)
 	}
 	pb := NewProgressBarTo(rcvFile.filename, rcvFile.size, outPipe)
-	pb.Update(0)
+	if !scp.IsQuiet {
+		pb.Update(0)
+	}
 
 	//TODO: mode here
 	fw, err := os.Create(thisDstFile)
@@ -318,7 +320,9 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 		tot += int64(n)
 		percent := (100 * tot) / rcvFile.size
 		if percent > lastPercent {
-			pb.Update(tot)
+			if !scp.IsQuiet {
+				pb.Update(tot)
+			}
 		}
 		lastPercent = percent
 	}
@@ -347,7 +351,9 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 			return err
 		}
 	}
-	pb.Update(tot)
+	if !scp.IsQuiet {
+		pb.Update(tot)
+	}
 	scp.Println() //new line
 	return
 }
