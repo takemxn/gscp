@@ -42,19 +42,6 @@ func (ch *Channel) Read(p []byte) (n int, err error){
 		}
 	}
 	return 0, nil
-	
-/*
-	i := 0
-	for ;i < len(p);i++{
-		b, ok := <- ch.ch
-		if ok {
-			p[i] = b[0]
-		}else{
-			break
-		}
-	}
-	return i, nil
-*/
 }
 func (ch *Channel) Close() (err error){
 	close(ch.ch)
