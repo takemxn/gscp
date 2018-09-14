@@ -188,24 +188,20 @@ func (scp *Scp) Exec() (err error) {
 		return err
 	}
 	rCh := make(chan error, 1)
-	sCh := make(chan error, 1)
 	if scp.dstHost != "" {
 		// copy to remote
 		r, w, err := scp.openRemoteReceiver(rCh)
 		if err != nil {
-			sCh <- err
 			return err
 		}
 		go func(){
 			for _, v := range scp.args[0 : len(scp.args)-1] {
-				wg, err := scp.sendFrom(v, r, w)
+				err = scp.sendFrom(v, r, w)
 				if err != nil {
-					sCh <- err
+					return
 				}
-				wg.Wait()
 			}
 			w.Close()
-			sCh <-nil
 		}()
 	}else{
 		// copy to local
@@ -217,21 +213,15 @@ func (scp *Scp) Exec() (err error) {
 		}
 		go func(){
 			for _, v := range scp.args[0 : len(scp.args)-1] {
-				wg, err := scp.sendFrom(v, out, in)
+				err = scp.sendFrom(v, out, in)
 				if err != nil {
-					sCh <- err
+					return
 				}
-				wg.Wait()
 			}
 			out.Close()
-			sCh <-nil
 		}()
 	}
 	err = <-rCh
-	if err != nil {
-		return err
-	}
-	err = <-sCh
 	if err != nil {
 		return err
 	}

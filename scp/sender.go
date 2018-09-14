@@ -245,8 +245,8 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	}
 	return err
 }
-func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (w sync.WaitGroup, err error) {
-	w = wg
+func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (err error) {
+	wg := &sync.WaitGroup{}
 	file, host, user, err := parseTarget(file)
 	if err != nil {
 		return
@@ -262,5 +262,6 @@ func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (
 			return
 		}
 	}
+	wg.Wait()
 	return
 }
