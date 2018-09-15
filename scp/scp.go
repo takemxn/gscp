@@ -213,10 +213,7 @@ func (scp *Scp) Exec() (err error) {
 				err = <-rCh
 			}else{
 				// copy local to local
-				err = fileCopy(file, scp.dstFile, scp.IsRecursive)
-				if err != nil {
-					return err
-				}
+				return errors.New("Not suport local copy")
 			}
 		}
 	}
@@ -227,7 +224,4 @@ func (scp *Scp) Printf(format string, args ...interface{}){
 }
 func (scp *Scp) Println(args ...interface{}){
 	fmt.Fprintln(scp.Stderr, args...)
-}
-func fileCopy(src, dst string, recursive bool) (err error){
-	return
 }
