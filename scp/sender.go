@@ -220,11 +220,11 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if scp.IsVerbose {
 		fmt.Println( "Sent file.")
 	}
-	/*
 	err = sendByte(writer, 0)
 	if err != nil {
 		return err
 	}
+	/*
 	err = readExpect(reader, 0)
 	if err != nil {
 		return err
