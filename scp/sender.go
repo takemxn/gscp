@@ -64,7 +64,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 			}
 			_, err = writer.Write(buf[:n])
 			if err != nil {
-				scp.Println("scp write error", err)
 				return
 			}
 		}
@@ -80,7 +79,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 			}
 			_, err = w.Write(buf[:n])
 			if err != nil {
-				fmt.Println(err)
 				return
 			}
 		}
@@ -101,7 +99,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 	if err != nil {
 		return
 	}
-	s.Close()
 	return
 }
 func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer) (err error) {
@@ -111,10 +108,12 @@ func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer
 	if err != nil {
 		return err
 	}
+	/*
 	err = readExpect(reader, 0)
 	if err != nil {
 		return err
 	}
+	*/
 	if scp.IsRecursive {
 		if srcFileInfo.IsDir() {
 			err = scp.processDir(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)

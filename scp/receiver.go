@@ -283,10 +283,8 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	thisDstFile := ""
 	if dstName == "" {
 		thisDstFile = filepath.Join(dstDir, rcvFile.filename)
-	fmt.Println("thisDstFile1:", thisDstFile)
 	}else{
 		thisDstFile = filepath.Join(dstDir, dstName)
-	fmt.Println("thisDstFile2:", thisDstFile)
 	}
 	if scp.IsVerbose {
 		scp.Println("Creating destination file: ", thisDstFile)
