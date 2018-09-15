@@ -8,9 +8,6 @@ import (
 	"io"
 	"sync"
 )
-var(
-	wg sync.WaitGroup
-)
 func readExpect(r io.Reader, expect byte)(err error){
 	b := make([]byte, 1)
 	_, err = r.Read(b)
@@ -34,6 +31,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 		fmt.Printf("unable to create session: %s", err)
 		return
 	}
+	defer conn.Close()
 	s, err := conn.NewSession()
 	if err != nil {
 		return
@@ -54,8 +52,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 		return
 	}
 	go func(){
-		defer wg.Done()
-		wg.Add(1)
 		for{
 			buf := make([]byte, BUF_SIZE)
 			n, err := r.Read(buf)
@@ -69,8 +65,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 		}
 	}()
 	go func(){
-		defer wg.Done()
-		wg.Add(1)
 		for{
 			buf := make([]byte, BUF_SIZE)
 			n, err := reader.Read(buf)
@@ -84,8 +78,6 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 		}
 	}()
 	go func(){
-		defer wg.Done()
-		wg.Add(1)
 		io.Copy(scp.Stderr, e)
 	}()
 	remoteOpts := "-qf"
@@ -164,7 +156,6 @@ func (scp *Scp) processDir(reader io.Reader, writer io.Writer, srcFilePath strin
 			}
 		}
 	}
-	//TODO process errors
 	err = scp.sendEndDir(reader, writer, errPipe)
 	return err
 }
@@ -209,6 +200,7 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if err != nil {
 		return err
 	}
+	fmt.Println("readExpect")
 	err = readExpect(reader, 0)
 	if err != nil {
 		return err

@@ -167,23 +167,6 @@ func ScpCli(args []string) error {
 	return err
 }
 func (scp *Scp) Exec() (err error) {
-	remoteCopy := false
-	for _, v := range scp.args[:] {
-		_, host, _, err := parseTarget(v)
-		if err != nil {
-			return err
-		}
-		if host != "" {
-			remoteCopy = true
-			break
-		}
-	}
-	if remoteCopy == false {
-		// local copy with scp
-		// not supported yet
-		return
-	}
-	//buf := make(chan []byte)
 	scp.dstFile, scp.dstHost, scp.dstUser, err = parseTarget(scp.args[len(scp.args)-1])
 	if err != nil {
 		return err
@@ -204,27 +187,38 @@ func (scp *Scp) Exec() (err error) {
 			}
 			w.Close()
 		}()
-	}else{
-		// copy to local
-		in := NewChannel("in channel")
-		out := NewChannel("out channel")
-		err = scp.openLocalReceiver(in, out, rCh)
+		err = <-rCh
 		if err != nil {
-			return
+			return err
 		}
-		go func(){
-			for _, v := range scp.args[0 : len(scp.args)-1] {
-				err = scp.sendFrom(v, out, in)
+	}else{
+		for _, v := range scp.args[0 : len(scp.args)-1] {
+			file, host, user, err := parseTarget(v)
+			if err != nil {
+				return err
+			}
+			if host != "" {
+				// remote to local
+				in := NewChannel("in channel")
+				out := NewChannel("out channel")
+				go func(){
+					rCh <- scp.openLocalReceiver(in, out)
+				}()
+				err = scp.sendFromRemote(file, user, host, out, in)
 				if err != nil {
-					return
+					return err
+				}
+				in.Close()
+				out.Close()
+				err = <-rCh
+			}else{
+				// copy local to local
+				err = fileCopy(file, scp.dstFile, scp.IsRecursive)
+				if err != nil {
+					return err
 				}
 			}
-			in.Close()
-		}()
-	}
-	err = <-rCh
-	if err != nil {
-		return err
+		}
 	}
 	return
 }
@@ -233,4 +227,7 @@ func (scp *Scp) Printf(format string, args ...interface{}){
 }
 func (scp *Scp) Println(args ...interface{}){
 	fmt.Fprintln(scp.Stderr, args...)
+}
+func fileCopy(src, dst string, recursive bool) (err error){
+	return
 }
