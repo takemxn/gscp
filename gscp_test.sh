@@ -118,7 +118,20 @@ TEST_REMOTE_TO_LOCAL_8(){
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
-test_scp_remote_to_local(){
+TEST_RL_TO_LOCAL_9(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	echo a > /tmp/from/a.txt
+	echo b > /tmp/from/b.txt
+	set -x
+	ls -1 /tmp/from/*
+	./gscp -q take@localhost:/tmp/from/a.txt /tmp/from/b.txt /tmp/to
+	diff /tmp/from /tmp/to
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
+test_scp_to_local(){
 	trap "err_h $LINENO" ERR
 	TEST_REMOTE_TO_LOCAL_1
 	TEST_REMOTE_TO_LOCAL_2
@@ -127,7 +140,7 @@ test_scp_remote_to_local(){
 	TEST_REMOTE_TO_LOCAL_5
 	TEST_REMOTE_TO_LOCAL_6
 	TEST_REMOTE_TO_LOCAL_7
-	TEST_REMOTE_TO_LOCAL_8
+	TEST_RL_TO_LOCAL_9
 }
 diff_deep(){
 	local A=$1
@@ -169,7 +182,7 @@ TEST_LOCAL_TO_REMOTE_2(){
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
-test_scp_local_to_remote(){
+test_scp_to_remote(){
 	trap "err_h $LINENO" ERR
 	TEST_LOCAL_TO_REMOTE_1
 	TEST_LOCAL_TO_REMOTE_2
@@ -199,8 +212,8 @@ init_dir(){
 }
 main(){
 	trap "err_h $LINENO" ERR
-	test_scp_remote_to_local
-	test_scp_local_to_remote
+	test_scp_to_local
+	test_scp_to_remote
 	test_scp_remote_remote
 }
 main 2>&1 | tee gscp_test.log

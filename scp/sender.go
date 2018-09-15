@@ -220,6 +220,7 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if scp.IsVerbose {
 		fmt.Println( "Sent file.")
 	}
+	/*
 	err = sendByte(writer, 0)
 	if err != nil {
 		return err
@@ -228,6 +229,7 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if err != nil {
 		return err
 	}
+	*/
 	if !scp.IsQuiet {
 		pb.Update(size)
 	}
@@ -250,7 +252,6 @@ func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (
 			return
 		}
 		wg.Wait()
-		writer.Write([]byte{0x0A})
 	} else {
 		err = scp.sendFromLocal(file, reader, writer)
 		if err != nil {
