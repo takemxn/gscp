@@ -149,6 +149,7 @@ TEST_LOCAL_TO_REMOTE_1(){
 	set -x
 	./gscp -q $D/from/a.txt $SCPUSER1@localhost:$D/to/a.txt
 	diff $D/from/a.txt $D/to/a.txt
+	echo b > $D/from/b.txt
 	./gscp -q $D/from/*.txt $SCPUSER1@localhost:$D/to/.
 	diff $D/from $D/to
 	set +x
