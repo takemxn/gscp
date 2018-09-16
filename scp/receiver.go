@@ -223,7 +223,7 @@ func (scp *Scp) openRemoteReceiver(rCh chan error) (r io.Reader, w io.WriteClose
 	if err != nil {
 		return
 	}
-	remoteOpts := "-qt"
+	remoteOpts := "-t"
 	if scp.IsPreserve{
 		remoteOpts += "p"
 	}

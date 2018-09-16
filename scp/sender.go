@@ -50,7 +50,10 @@ func (scp *Scp) sendFromRemote(file, user, host string, ech chan error) (r io.Re
 	}
 	go io.Copy(scp.Stderr, e)
 	go func(){
-		defer conn.Close()
+		defer func(){
+			conn.Close()
+			s.Close()
+		}()
 		remoteOpts := "-qf"
 		if scp.IsPreserve{
 			remoteOpts += "p"
@@ -69,12 +72,6 @@ func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer
 	if err != nil {
 		return err
 	}
-	/*
-	err = readExpect(reader, 0)
-	if err != nil {
-		return err
-	}
-	*/
 	if scp.IsRecursive {
 		if srcFileInfo.IsDir() {
 			err = scp.processDir(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
@@ -93,7 +90,7 @@ func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer
 		} else {
 			err = scp.sendFile(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
-				fmt.Println( err.Error())
+				//fmt.Println( err.Error())
 			}
 		}
 	}
@@ -169,7 +166,6 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if err != nil {
 		return err
 	}
-	fmt.Println("readExpect")
 	err = readExpect(reader, 0)
 	if err != nil {
 		return err
@@ -185,12 +181,10 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if err != nil {
 		return err
 	}
-	/*
 	err = readExpect(reader, 0)
 	if err != nil {
 		return err
 	}
-	*/
 	if !scp.IsQuiet {
 		pb.Update(size)
 	}

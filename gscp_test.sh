@@ -57,6 +57,10 @@ TEST_REMOTE_TO_LOCAL_4(){
 	mkdir $D/from/tt
 	echo "def" > $D/from/a.txt
 	head -c 14098 /dev/urandom > $D/from/tt/tt.txt
+	mkdir $D/from/dd
+	head -c 900000 /dev/urandom > $D/from/dd/d.txt
+	head -c 910000 /dev/urandom > $D/from/dd/d2.txt
+	head -c 910000 /dev/urandom > $D/from/dd/d2aaaaaaaa.txt
 	sleep 2
 	set -x
 	./gscp -qp -vr $SCPUSER1@localhost:$D/from/* $D/to
@@ -98,7 +102,7 @@ TEST_REMOTE_TO_LOCAL_7(){
 	trap '' ERR
 	ERR_MSG=`./gscp -qr $SCPUSER1@localhost:$D/from/. $D/to/t.txt 2>&1`
 	if [ "${ERR_MSG}" != "scp: \"$D/to/t.txt\": Not a directory" ]; then
-		return 1
+		err_h $LINENO
 	fi
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -115,19 +119,6 @@ TEST_REMOTE_TO_LOCAL_8(){
 	if [ "${ERR_MSG}" != "scp: /tmp/from: not a regular file" ]; then
 		return 1
 	fi
-	set +x
-	echo "${FUNCNAME[0]} success"
-}
-TEST_RL_TO_LOCAL_9(){
-	trap "err_h $LINENO" ERR
-	echo "${FUNCNAME[0]}"
-	init_dir
-	echo a > /tmp/from/a.txt
-	echo b > /tmp/from/b.txt
-	set -x
-	ls -1 /tmp/from/*
-	./gscp -q take@localhost:/tmp/from/a.txt /tmp/from/b.txt /tmp/to
-	diff /tmp/from /tmp/to
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
@@ -153,8 +144,7 @@ test_scp_to_local(){
 	TEST_REMOTE_TO_LOCAL_5
 	TEST_REMOTE_TO_LOCAL_6
 	TEST_REMOTE_TO_LOCAL_7
-	#TEST_RL_TO_LOCAL_9
-	#TEST_RR_TO_LOCAL_10
+	TEST_RR_TO_LOCAL_10
 }
 diff_deep(){
 	local A=$1

@@ -193,23 +193,24 @@ func (scp *Scp) Exec() (err error) {
 				go io.Copy(w, lr)
 				go io.Copy(lw, r)
 				err = <- ech
-				if err != nil {
+				if err != nil && err != io.EOF {
 					return err
 				}
 			}else{
 				// local to remote
 				err = scp.sendFromLocal(file, lr, lw)
-				if err != nil {
+				if err != nil && err != io.EOF {
 					return err
 				}
 			}
-			lw.Close()
 		}
+		lw.Close()
 		err = <-rCh
-		if err != nil {
-			return err
+		if err == io.EOF {
+			err = nil
 		}
 	}else{
+		// copy to local
 		for _, v := range scp.args[0 : len(scp.args)-1] {
 			file, host, user, err := parseTarget(v)
 			if err != nil {
@@ -231,7 +232,7 @@ func (scp *Scp) Exec() (err error) {
 					return err
 				}
 			}else{
-				// copy local to local
+				// local to local
 				return errors.New("Not suport local copy")
 			}
 		}
