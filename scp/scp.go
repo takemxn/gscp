@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	VERSION = "0.1.0"
+	VERSION = "0.0.2"
 	BUF_SIZE = (4096)
 )
 type Channel struct {

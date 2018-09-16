@@ -102,10 +102,6 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			if scp.IsVerbose {
 				scp.Printf("Received All-done\n")
 			}
-			err = sendByte(cw, 0)
-			if err != nil {
-				return err
-			}
 		case 'D':
 			parts, err := scp.parseCmdLine(rd)
 			if err != nil {
@@ -166,8 +162,9 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			if err != nil {
 				return err
 			}
-			_, err = cw.Write([]byte{0})
+			err = sendByte(cw, 0)
 			if err != nil {
+				scp.Println("Write error: %s", err.Error())
 				return err
 			}
 		case 'T':
@@ -252,7 +249,7 @@ func (scp *Scp)parseCmd(cmdStr []string) (mode os.FileMode, size int64, filename
 	}
 	filename = cmdStr[2]
 	if scp.IsVerbose {
-		scp.Printf("Mode: %d, size: %d, filename: %s\n", mode, size, filename)
+		scp.Printf("Mode: %03o, size: %d, filename: %s\n", mode, size, filename)
 	}
 	return
 }
@@ -278,7 +275,6 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	}
 	defer fw.Close()
 	reader := bufio.NewReader(rd)
-	writer := bufio.NewWriter(fw)
 	tot := int64(0)
 	lastPercent := int64(0)
 	var rb []byte
@@ -293,11 +289,7 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 		if err != nil {
 			return err
 		}
-		_, err = writer.Write(rb[:n])
-		if err != nil {
-			return err
-		}
-		err = writer.Flush()
+		_, err = fw.Write(rb[:n])
 		if err != nil {
 			return err
 		}
@@ -309,9 +301,6 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 			}
 		}
 		lastPercent = percent
-	}
-	if scp.IsVerbose {
-		scp.Println("Copy end:", thisDstFile)
 	}
 	if scp.IsPreserve{
 		if err := fw.Chmod(rcvFile.mode); err != nil {
