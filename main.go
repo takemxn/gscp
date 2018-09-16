@@ -1,15 +1,15 @@
 package main
 
 import (
-	"fmt"
 	"github.com/takemxn/gscp/scp"
 	"os"
+	"fmt"
 )
 
 func main() {
 	err := scp.ScpCli(os.Args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\nError: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }

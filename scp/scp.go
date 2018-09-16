@@ -13,15 +13,20 @@ import (
 )
 
 const (
-	VERSION = "0.1.0"
+	VERSION = "0.0.2"
+	BUF_SIZE = (4096)
 )
 type Channel struct {
 	ch chan []byte
 	buffer []byte
+	name string
+	reader io.Reader
+	writer io.WriteCloser
 }
-func NewChannel() *Channel{
+func NewChannel(name string) *Channel{
 	ch := &Channel{}
 	ch.ch = make(chan []byte)
+	ch.name = name
 	return ch
 }
 func (ch *Channel) Write(p []byte) (n int, err error){
@@ -39,12 +44,18 @@ func (ch *Channel) Read(p []byte) (n int, err error){
 			n := copy(p, b)
 			ch.buffer = b[n:]
 			return n, nil
+		}else{
+			return 0, io.EOF
 		}
 	}
-	return 0, nil
+	return
 }
 func (ch *Channel) Close() (err error){
-	close(ch.ch)
+	select {
+	case <- ch.ch:
+	default:
+		close(ch.ch)
+	}
 	return nil
 }
 type Scp struct {
@@ -99,6 +110,7 @@ func (scp *Scp) ParseFlags(call []string, errPipe io.Writer) error {
 	scp.args = args
 	return nil
 }
+
 
 //TODO: error for multiple ats or multiple colons
 func parseTarget(target string) (string, string, string, error) {
@@ -155,44 +167,76 @@ func ScpCli(args []string) error {
 	return err
 }
 func (scp *Scp) Exec() (err error) {
-	remoteCopy := false
-	for _, v := range scp.args[:] {
-		_, host, _, err := parseTarget(v)
-		if err != nil {
-			return err
-		}
-		if host != "" {
-			remoteCopy = true
-			break
-		}
-	}
-	if remoteCopy == false {
-		// local copy with scp
-		// not supported yet
-		return
-	}
-	//buf := make(chan []byte)
 	scp.dstFile, scp.dstHost, scp.dstUser, err = parseTarget(scp.args[len(scp.args)-1])
 	if err != nil {
 		return err
 	}
 	rCh := make(chan error, 1)
-	in, out, err := scp.openReceiver(rCh)
-	if err != nil {
-		return err
-	}
-	sCh := make(chan error, 1)
-	go func(){
+	if scp.dstHost != "" {
+		// copy to remote
+		lr, lw, err := scp.openRemoteReceiver(rCh)
+		if err != nil {
+			return err
+		}
 		for _, v := range scp.args[0 : len(scp.args)-1] {
-			err := scp.sendFrom(v, in, out)
+			file, host, user, err := parseTarget(v)
 			if err != nil {
-				sCh <- err
-				break
+				return err
+			}
+			if host != "" {
+				ech := make(chan error, 1)
+				// remote to remote
+				r, w, err := scp.sendFromRemote(file, user, host, ech)
+				if err != nil {
+					return err
+				}
+				go io.Copy(w, lr)
+				go io.Copy(lw, r)
+				err = <- ech
+				if err != nil && err != io.EOF {
+					return err
+				}
+			}else{
+				// local to remote
+				err = scp.sendFromLocal(file, lr, lw)
+				if err != nil && err != io.EOF {
+					return err
+				}
 			}
 		}
-		close(sCh)
-	}()
-	err = <-rCh
+		lw.Close()
+		err = <-rCh
+		if err == io.EOF {
+			err = nil
+		}
+	}else{
+		// copy to local
+		for _, v := range scp.args[0 : len(scp.args)-1] {
+			file, host, user, err := parseTarget(v)
+			if err != nil {
+				return err
+			}
+			if host != "" {
+				ech := make(chan error, 1)
+				// remote to local
+				r, w, err := scp.sendFromRemote(file, user, host, ech)
+				if err != nil {
+					return err
+				}
+				err = scp.openLocalReceiver(r, w)
+				if err != nil {
+					return err
+				}
+				err = <-ech
+				if err != nil {
+					return err
+				}
+			}else{
+				// local to local
+				return errors.New("Not suport local copy")
+			}
+		}
+	}
 	return
 }
 func (scp *Scp) Printf(format string, args ...interface{}){
