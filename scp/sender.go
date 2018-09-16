@@ -6,7 +6,6 @@ import (
 	com "github.com/takemxn/gssh/common"
 	"os"
 	"io"
-	"sync"
 )
 func readExpect(r io.Reader, expect byte)(err error){
 	b := make([]byte, 1)
@@ -20,7 +19,7 @@ func readExpect(r io.Reader, expect byte)(err error){
 	return
 }
 
-func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer io.WriteCloser) (err error) {
+func (scp *Scp) sendFromRemote(file, user, host string, ech chan error) (r io.Reader, w io.WriteCloser, err error) {
 	password := scp.Password
 	if password == "" {
 		password = scp.config.GetPassword(user, host, scp.Port)
@@ -31,19 +30,17 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 		fmt.Printf("unable to create session: %s", err)
 		return
 	}
-	defer conn.Close()
 	s, err := conn.NewSession()
 	if err != nil {
 		return
 	} else if scp.IsVerbose {
 		fmt.Fprintln(scp.Stderr, "Got sender session")
 	}
-	defer s.Close()
-	w, err := s.StdinPipe()
+	w, err = s.StdinPipe()
 	if err != nil {
 		return
 	}
-	r, err := s.StdoutPipe()
+	r, err = s.StdoutPipe()
 	if err != nil {
 		return
 	}
@@ -51,46 +48,18 @@ func (scp *Scp) sendFromRemote(file, user, host string, reader io.Reader, writer
 	if err != nil {
 		return
 	}
+	go io.Copy(scp.Stderr, e)
 	go func(){
-		for{
-			buf := make([]byte, BUF_SIZE)
-			n, err := r.Read(buf)
-			if err != nil {
-				return
-			}
-			_, err = writer.Write(buf[:n])
-			if err != nil {
-				return
-			}
+		defer conn.Close()
+		remoteOpts := "-qf"
+		if scp.IsPreserve{
+			remoteOpts += "p"
 		}
-	}()
-	go func(){
-		for{
-			buf := make([]byte, BUF_SIZE)
-			n, err := reader.Read(buf)
-			if err != nil {
-				return
-			}
-			_, err = w.Write(buf[:n])
-			if err != nil {
-				return
-			}
+		if scp.IsRecursive {
+			remoteOpts += "r"
 		}
+		ech <- s.Run("/usr/bin/scp " + remoteOpts + " " + file)
 	}()
-	go func(){
-		io.Copy(scp.Stderr, e)
-	}()
-	remoteOpts := "-qf"
-	if scp.IsPreserve{
-		remoteOpts += "p"
-	}
-	if scp.IsRecursive {
-		remoteOpts += "r"
-	}
-	err = s.Run("/usr/bin/scp " + remoteOpts + " " + file)
-	if err != nil {
-		return
-	}
 	return
 }
 func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer) (err error) {
@@ -231,25 +200,4 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 		fmt.Println( err.Error())
 	}
 	return err
-}
-func (scp *Scp) sendFrom(file string, reader io.Reader, writer io.WriteCloser) (err error) {
-	wg := &sync.WaitGroup{}
-	file, host, user, err := parseTarget(file)
-	if err != nil {
-		return
-	}
-	if host != "" {
-		err = scp.sendFromRemote(file, user, host, reader, writer)
-		if err != nil {
-			return
-		}
-		wg.Wait()
-	} else {
-		err = scp.sendFromLocal(file, reader, writer)
-		if err != nil {
-			return
-		}
-		wg.Wait()
-	}
-	return
 }

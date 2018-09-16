@@ -271,14 +271,14 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	if !scp.IsQuiet {
 		pb.Update(0)
 	}
-
 	//TODO: mode here
 	fw, err := os.Create(thisDstFile)
 	if err != nil {
 		return
 	}
 	defer fw.Close()
-
+	reader := bufio.NewReader(rd)
+	writer := bufio.NewWriter(fw)
 	tot := int64(0)
 	lastPercent := int64(0)
 	var rb []byte
@@ -289,11 +289,15 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 		}else{
 			rb = make([]byte, BUF_SIZE)
 		}
-		n, err := rd.Read(rb)
+		n, err := reader.Read(rb)
 		if err != nil {
 			return err
 		}
-		_, err = fw.Write(rb[:n])
+		_, err = writer.Write(rb[:n])
+		if err != nil {
+			return err
+		}
+		err = writer.Flush()
 		if err != nil {
 			return err
 		}
@@ -305,6 +309,9 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 			}
 		}
 		lastPercent = percent
+	}
+	if scp.IsVerbose {
+		scp.Println("Copy end:", thisDstFile)
 	}
 	if scp.IsPreserve{
 		if err := fw.Chmod(rcvFile.mode); err != nil {
