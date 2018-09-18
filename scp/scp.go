@@ -7,7 +7,6 @@ import (
 	"github.com/laher/uggo"
 	com "github.com/takemxn/gssh/common"
 	"io"
-	"os"
 	"strings"
 	"fmt"
 )
@@ -82,10 +81,10 @@ func (scp *Scp) Name() string {
 	return "scp"
 }
 
-//func Scp(call []string) error {
-func (scp *Scp) ParseFlags(call []string, errPipe io.Writer) error {
-	//fmt.Fprintf(errPipe, "Warning: this scp is incomplete and not currently working with all ssh servers\n")
-	flagSet := uggo.NewFlagSetDefault("scp", "[options] [[user@]host1:]file1 [[user@]host2:]file2", VERSION)
+func (scp *Scp) ParseFlags(call []string) error {
+	var help bool
+	usage := `[options] [[user@]host1:]file1 [[user@]host2:]file2`
+	flagSet := uggo.NewFlagSetDefault("scp", usage, VERSION)
 	flagSet.BoolVar(&scp.IsRecursive, "r", false, "Recursive copy")
 	flagSet.IntVar(&scp.Port, "P", 22, "Port number")
 	flagSet.BoolVar(&scp.IsRemoteTo, "t", false, "Remote 'to' mode - not currently supported")
@@ -95,6 +94,7 @@ func (scp *Scp) ParseFlags(call []string, errPipe io.Writer) error {
 	flagSet.BoolVar(&scp.IsPreserve, "p", false, "Preserve mode from the original file")
 	flagSet.StringVar(&scp.Password, "w", "", "password")
 	flagSet.StringVar(&scp.ConfigPath, "F", "", "password file path")
+	flagSet.BoolVar(&help, "h", false, "help")
 	err, _ := flagSet.ParsePlus(call[1:])
 	if err != nil {
 		return err
@@ -105,7 +105,30 @@ func (scp *Scp) ParseFlags(call []string, errPipe io.Writer) error {
 	args := flagSet.Args()
 	if len(args) < 2 {
 		flagSet.Usage()
-		return errors.New("Not enough args")
+		err = errors.New("Not enough args")
+	}
+	if help {
+		fmt.Fprintln(scp.Stderr, `
+command example:
+  scp -F password_file user@host:/from/file /to/.
+  scp -w password user@host:/from/file /to/.
+
+password_file format:
+  [passwods]
+  user=password
+
+environment variabl $GSSH_PASSWORDFILE, $GSSH_PASSWORDS use for password specify.
+
+priority of password
+  -w option
+  -F option
+  $GSSH_PASSWORDFILE
+  ~/.gssh
+  $GSSH_PASSWORDS
+`)
+	}
+	if err != nil{
+		return err
 	}
 	scp.args = args
 	return nil
@@ -149,24 +172,8 @@ func sendByte(w io.Writer, val byte) error {
 func NewScp(inPipe io.Reader, outPipe io.Writer, errPipe io.Writer) (*Scp) {
 	return &Scp{Stdin:inPipe, Stdout:outPipe, Stderr:errPipe}
 }
-func ScpCli(args []string) error {
-	scp := NewScp(os.Stdin, os.Stdout, os.Stderr)
-	err := scp.ParseFlags(args, os.Stderr)
-	if err != nil {
-		return err
-	}
-	if scp.Password == "" {
-		config := com.NewConfig(scp.ConfigPath)
-		err = config.ReadPasswords()
-		if err != nil {
-			return err
-		}
-		scp.config = config
-	}
-	err = scp.Exec()
-	return err
-}
-func (scp *Scp) Exec() (err error) {
+func (scp *Scp) Exec(config *com.Config) (err error) {
+	scp.config = config
 	scp.dstFile, scp.dstHost, scp.dstUser, err = parseTarget(scp.args[len(scp.args)-1])
 	if err != nil {
 		return err

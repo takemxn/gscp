@@ -1,7 +1,14 @@
 #!/bin/bash
 
-SCPUSER1=take
-SCPUSER2=t
+. /tmp/user.info
+
+CONFIG=/tmp/gscp.conf
+cat <<EOS >$CONFIG
+[passwords]
+$SCPUSER1=$SCPUSER1_PASSWD
+$SCPUSER2=$SCPUSER2_PASSWD
+EOS
+
 D=/tmp
 err_h(){
 	set +x
@@ -137,6 +144,7 @@ TEST_RR_TO_LOCAL_10(){
 }
 test_scp_to_local(){
 	trap "err_h $LINENO" ERR
+	cp $CONFIG ~/.gssh
 	TEST_REMOTE_TO_LOCAL_1
 	TEST_REMOTE_TO_LOCAL_2
 	TEST_REMOTE_TO_LOCAL_3
@@ -188,6 +196,7 @@ TEST_LOCAL_TO_REMOTE_2(){
 }
 test_scp_to_remote(){
 	trap "err_h $LINENO" ERR
+	cp $CONFIG ~/.gssh
 	TEST_LOCAL_TO_REMOTE_1
 	TEST_LOCAL_TO_REMOTE_2
 	return 0
@@ -206,6 +215,18 @@ TEST_REMOTE_TO_REMOTE_1(){
 test_scp_remote_remote(){
 	TEST_REMOTE_TO_REMOTE_1
 }
+test_scp_opt(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	rm -f ~/.gssh
+	head -c 500000 /dev/urandom > $D/from/t.txt
+	./gscp -q -F ${CONFIG} $SCPUSER1@localhost:$D/from/t.txt $D/to/t.txt
+	diff $D/from $D/to
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
 rm_dir(){
 	rm -rf $D/from
 	rm -rf $D/to
@@ -216,6 +237,7 @@ init_dir(){
 }
 main(){
 	trap "err_h $LINENO" ERR
+	test_scp_opt
 	test_scp_to_local
 	test_scp_to_remote
 	test_scp_remote_remote
