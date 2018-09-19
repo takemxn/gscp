@@ -122,9 +122,13 @@ TEST_REMOTE_TO_LOCAL_8(){
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
-	ERR_MSG=`./gscp -q take@localhost:/tmp/from /tmp/to 2>&1`
+	ERR_MSG=`./gscp take@localhost:/tmp/from /tmp/to 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/from: not a regular file" ]; then
-		return 1
+		err_h $LINENO
+	fi
+	ERR_MSG=`./gscp take@localhost:/tmp/from/nothing /tmp/to 2>&1`
+	if [ "${ERR_MSG}" != "scp: /tmp/from/nothing: No such file or directory" ]; then
+		err_h $LINENO
 	fi
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -152,6 +156,7 @@ test_scp_to_local(){
 	TEST_REMOTE_TO_LOCAL_5
 	TEST_REMOTE_TO_LOCAL_6
 	TEST_REMOTE_TO_LOCAL_7
+	TEST_REMOTE_TO_LOCAL_8
 	TEST_RR_TO_LOCAL_10
 }
 diff_deep(){
@@ -194,11 +199,40 @@ TEST_LOCAL_TO_REMOTE_2(){
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
+TEST_LOCAL_TO_REMOTE_3(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	mkdir $D/from/ttt
+	echo ttt > $D/from/t.txt
+	echo ccc > $D/from/ttt/ccc.txt
+	head -c 20m /dev/urandom > $D/from/random.bin
+	./gscp -qr $D/from/* $SCPUSER1@localhost:$D/to
+	diff -r $D/from $D/to
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
+TEST_LOCAL_TO_REMOTE_4(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+	init_dir
+	set -x
+	trap '' ERR
+	ERR_MSG=`./gscp /tmp/from take@localhost:/tmp/to 2>&1`
+	if [ "${ERR_MSG}" != "/tmp/from: not a regular file" ]; then
+		err_h $LINENO
+	fi
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
 test_scp_to_remote(){
 	trap "err_h $LINENO" ERR
 	cp $CONFIG ~/.gssh
 	TEST_LOCAL_TO_REMOTE_1
 	TEST_LOCAL_TO_REMOTE_2
+	TEST_LOCAL_TO_REMOTE_3
+	TEST_LOCAL_TO_REMOTE_4
 	return 0
 }
 TEST_REMOTE_TO_REMOTE_1(){

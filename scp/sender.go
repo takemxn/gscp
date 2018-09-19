@@ -54,7 +54,7 @@ func (scp *Scp) sendFromRemote(file, user, host string, ech chan error) (r io.Re
 			conn.Close()
 			s.Close()
 		}()
-		remoteOpts := "-qf"
+		remoteOpts := "-f"
 		if scp.IsPreserve{
 			remoteOpts += "p"
 		}
@@ -86,7 +86,7 @@ func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer
 		}
 	} else {
 		if srcFileInfo.IsDir() {
-			return
+			return fmt.Errorf("%s: not a regular file", srcFile)
 		} else {
 			err = scp.sendFile(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {

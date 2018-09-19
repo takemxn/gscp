@@ -82,10 +82,9 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			br := bufio.NewReader(rd)
 			line, _, err := br.ReadLine()
 			if err != nil {
-				scp.Println(line)
 				return err
 			}
-			return err
+			return errors.New(string(line))
 		case 'E':
 			//E command: go back out of dir
 			dstDir = filepath.Dir(dstDir)
@@ -289,9 +288,13 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 		if err != nil {
 			return err
 		}
-		_, err = fw.Write(rb[:n])
-		if err != nil {
-			return err
+		wb := rb[:n]
+		for i:=0;i < n;{
+			wn, err := fw.Write(wb[i:])
+			if err != nil {
+				return err
+			}
+			i += wn
 		}
 		tot += int64(n)
 		percent := (100 * tot) / rcvFile.size
