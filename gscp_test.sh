@@ -22,8 +22,10 @@ diff_deep(){
 	local B=$2
 	
 	diff -r $A $B
-	(cd $A; ls --time-style="+%Y-%m-%d %H:%M:%S" -lR |egrep -v "^d"|sort) > A.txt
-	(cd $B; ls --time-style="+%Y-%m-%d %H:%M:%S" -lR |egrep -v "^d"|sort) > B.txt
+	#(cd $A; ls --time-style="+%Y-%m-%d %H:%M:%S" -lR |egrep -v "^d"|sort) > A.txt
+	#(cd $B; ls --time-style="+%Y-%m-%d %H:%M:%S" -lR |egrep -v "^d"|sort) > B.txt
+	(cd $A; ls --time-style="+%Y-%m-%d %H:%M:%S" -lR |sort) > A.txt
+	(cd $B; ls --time-style="+%Y-%m-%d %H:%M:%S" -lR |sort) > B.txt
 	diff A.txt B.txt
 	return $?
 }

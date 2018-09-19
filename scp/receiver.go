@@ -22,7 +22,6 @@ type FileSet struct{
 }
 func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 	dstFile := scp.dstFile
-	errPipe := scp.Stderr
 	dstFileInfo, e := os.Stat(dstFile)
 	dstDir := dstFile
 	dstName := ""
@@ -54,6 +53,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 	if err != nil {
 		return
 	}
+
 	fs := new(FileSet)
 	for {
 		b := make([]byte, 1)
@@ -89,7 +89,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			//E command: go back out of dir
 			dstDir = filepath.Dir(dstDir)
 			if scp.IsVerbose {
-				scp.Printf("Received End-Dir\n")
+				scp.Printf("Received End-Dir:%q\n", dstDir)
 			}
 			err = sendByte(cw, 0)
 			if err != nil {
@@ -133,11 +133,6 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			if err != nil {
 				return err
 			}
-			if scp.IsPreserve {
-				if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
-					return err
-				}
-			}
 			dstDir = thisDstFile
 			err = sendByte(cw, 0)
 			if err != nil {
@@ -157,7 +152,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 				scp.Println("Write error: %s", err.Error())
 				return err
 			}
-			err = scp.receiveFile(rd, cw, dstDir, dstName, fs, errPipe)
+			err = scp.receiveFile(rd, cw, dstDir, dstName, fs)
 			if err != nil {
 				return err
 			}
@@ -252,7 +247,7 @@ func (scp *Scp)parseCmd(cmdStr []string) (mode os.FileMode, size int64, filename
 	}
 	return
 }
-func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, rcvFile *FileSet, outPipe io.Writer) (err error){
+func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, rcvFile *FileSet) (err error){
 	//C command - file
 	thisDstFile := ""
 	if dstName == "" {
@@ -263,7 +258,7 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	if scp.IsVerbose {
 		scp.Println("Creating destination file: ", thisDstFile)
 	}
-	pb := NewProgressBarTo(rcvFile.filename, rcvFile.size, outPipe)
+	pb := NewProgressBarTo(rcvFile.filename, rcvFile.size, scp.Stderr)
 	if !scp.IsQuiet {
 		pb.Update(0)
 	}
