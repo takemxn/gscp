@@ -9,7 +9,7 @@ import (
 
 
 const (
-	DEFAULT_FORMAT = "\r%s   % 3d %%  %d b %0.2f kb/s %v      "
+	DEFAULT_FORMAT = "\r%s   % 3d %%  %.2f kb %0.2f kb/s %v      "
 )
 
 type ProgressBar struct {
@@ -34,8 +34,7 @@ func (pb ProgressBar) Update(tot int64) {
 		percent = (int64(100) * tot) / pb.Size
 	}
 	totTime := time.Now().Sub(pb.StartTime)
-	spd := float64(tot/1000) / totTime.Seconds()
-	//TODO put kb size into format string
-	fmt.Fprintf(pb.Out, pb.Format, pb.Subject, percent, tot, spd, totTime)
-
+	totK := float64(tot / 1024)
+	spd := totK / totTime.Seconds()
+	fmt.Fprintf(pb.Out, pb.Format, pb.Subject, percent, totK, spd, totTime)
 }
