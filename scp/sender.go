@@ -170,12 +170,6 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if err != nil {
 		return err
 	}
-	/*
-	_, err = io.Copy(writer, fileReader)
-	if err != nil {
-		return err
-	}
-	*/
 	tot := int64(0)
 	lastPercent := int64(0)
 	var rb []byte

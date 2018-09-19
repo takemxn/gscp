@@ -281,11 +281,11 @@ TEST_NORM_PTN(){
 	set -x
 	echo NORMAL1
 	echo abcdefg > $D/from/t.txt
-	./gscp -qv $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to
-	./gscp -qv $SCPUSER1@${REMOTE}:$D/to/t.txt $D/to/.
+	./gscp -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to
+	./gscp -v $SCPUSER1@${REMOTE}:$D/to/t.txt $D/to/.
 	diff $D/from/t.txt $D/to/t.txt
-	./gscp -qv $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to/b.txt
-	./gscp -qv $SCPUSER1@${REMOTE}:$D/to/b.txt $D/to/c.txt
+	./gscp -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to/b.txt
+	./gscp -v $SCPUSER1@${REMOTE}:$D/to/b.txt $D/to/c.txt
 	diff $D/from/t.txt $D/to/c.txt
 	set +x
 	echo 200m
@@ -293,8 +293,8 @@ TEST_NORM_PTN(){
 	set -x
 	F=200m.bin
 	head -c 200m /dev/urandom > $D/from/${F}
-	./gscp -q $D/from/${F} $SCPUSER1@${REMOTE}:$D/to/.
-	./gscp -q $SCPUSER1@${REMOTE}:$D/to/${F} $D/to/
+	./gscp $D/from/${F} $SCPUSER1@${REMOTE}:$D/to/.
+	./gscp $SCPUSER1@${REMOTE}:$D/to/${F} $D/to/
 	diff $D/from/${F} $D/to/
 	echo TEST:WILDCARD
 	set +x
@@ -313,8 +313,8 @@ TEST_NORM_PTN(){
 	mkdir $D/from/d1
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
-	./gscp -qr $D/from $SCPUSER1@${REMOTE}:$D/to
-	./gscp -qr $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
+	./gscp -r $D/from $SCPUSER1@${REMOTE}:$D/to
+	./gscp -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff -r $D/from $D/to/from
 	set +x
 	echo TEST:MULTI COPY
@@ -339,6 +339,11 @@ TEST_NORM_PTN(){
 	./gscp -q  $SCPUSER2@${REMOTE}:$D/to/* $D/to
 	diff -r $D/from $D/to
 	set +x
+	echo "${FUNCNAME[0]} success"
+}
+TEST_P(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
 	echo TEST:RECURSIVE,PRESERVE
 	init_dir
 	set -x
@@ -346,9 +351,9 @@ TEST_NORM_PTN(){
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
 	sleep 2
-	./gscp -p -qr $D/from $SCPUSER1@${REMOTE}:$D/
+	./gscp -p -v -r $D/from $SCPUSER1@${REMOTE}:$D/
 	sleep 2
-	./gscp -p -qr $SCPUSER1@${REMOTE}:$D/from $D/to/.
+	./gscp -p -v -r $SCPUSER1@${REMOTE}:$D/from $D/to/.
 	diff_deep $D/from $D/to/from
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -384,9 +389,6 @@ TEST_ERR_PTN(){
 }
 main(){
 	trap "err_h $LINENO" ERR
-	set -x
-	init_dir
-	TEST_NORM_PTN
-	TEST_ERR_PTN
+	eval "$1"
 }
-main 2>&1 | tee gscp_test.log
+main "$@" 2>&1 | tee gscp_test.log

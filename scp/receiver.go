@@ -171,18 +171,18 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			if err != nil {
 				return err
 			}
-			// access time
+			// modification time
 			t, err := strconv.ParseUint(parts[0], 10, 64)
 			if err != nil {
 				return err
 			}
-			fs.atime = time.Unix(int64(t), 0)
-			// modification time
+			fs.mtime = time.Unix(int64(t), 0)
+			// access time
 			t, err = strconv.ParseUint(parts[2], 10, 64)
 			if err != nil {
 				return err
 			}
-			fs.mtime = time.Unix(int64(t), 0)
+			fs.atime = time.Unix(int64(t), 0)
 			err = sendByte(cw, 0)
 			if err != nil {
 				scp.Println("Write error: %s", err.Error())
