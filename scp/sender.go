@@ -170,9 +170,42 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	if err != nil {
 		return err
 	}
+	/*
 	_, err = io.Copy(writer, fileReader)
 	if err != nil {
 		return err
+	}
+	*/
+	tot := int64(0)
+	lastPercent := int64(0)
+	var rb []byte
+	for tot < size {
+		rest := size - tot
+		if rest < BUF_SIZE {
+			rb = make([]byte, rest)
+		}else{
+			rb = make([]byte, BUF_SIZE)
+		}
+		n, err := fileReader.Read(rb)
+		if err != nil {
+			return err
+		}
+		wb := rb[:n]
+		for i:=0;i < n;{
+			wn, err := writer.Write(wb[i:])
+			if err != nil {
+				return err
+			}
+			i += wn
+		}
+		tot += int64(n)
+		percent := (100 * tot) / size
+		if percent > lastPercent {
+			if !scp.IsQuiet {
+				pb.Update(tot)
+			}
+		}
+		lastPercent = percent
 	}
 	if scp.IsVerbose {
 		fmt.Println( "Sent file.")
@@ -187,8 +220,8 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	}
 	if !scp.IsQuiet {
 		pb.Update(size)
+		fmt.Fprintln(errPipe)
 	}
-	fmt.Fprintln(errPipe)
 
 	if err != nil {
 		fmt.Println( err.Error())

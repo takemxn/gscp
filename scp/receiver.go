@@ -171,18 +171,18 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			if err != nil {
 				return err
 			}
-			// modification time
+			// access time
 			t, err := strconv.ParseUint(parts[0], 10, 64)
 			if err != nil {
 				return err
 			}
-			fs.mtime = time.Unix(int64(t), 0)
-			// access time
+			fs.atime = time.Unix(int64(t), 0)
+			// modification time
 			t, err = strconv.ParseUint(parts[2], 10, 64)
 			if err != nil {
 				return err
 			}
-			fs.atime = time.Unix(int64(t), 0)
+			fs.mtime = time.Unix(int64(t), 0)
 			err = sendByte(cw, 0)
 			if err != nil {
 				scp.Println("Write error: %s", err.Error())
@@ -322,8 +322,8 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	}
 	if !scp.IsQuiet {
 		pb.Update(tot)
+		scp.Println() //new line
 	}
-	scp.Println() //new line
 	return
 }
 func (scp *Scp) parseCmdLine(rd io.Reader) (parts []string, err error){

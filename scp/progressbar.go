@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-const DEFAULT_FORMAT = "\r%s   % 3d %%  %d kb %0.2f kb/s %v      "
+
+const (
+	DEFAULT_FORMAT = "\r%s   % 3d %%  %d b %0.2f kb/s %v      "
+)
 
 type ProgressBar struct {
 	Out       io.Writer
