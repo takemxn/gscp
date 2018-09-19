@@ -148,6 +148,22 @@ func (scp *Scp) sendDir(reader io.Reader, writer io.Writer, srcPath string, srcF
 func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, srcFileInfo os.FileInfo, outPipe io.Writer, errPipe io.Writer) error {
 	//single file
 	mode := uint32(srcFileInfo.Mode().Perm())
+	if scp.IsPreserve {
+		// send time stamp
+		mtime := srcFileInfo.ModTime()
+		ftime := fmt.Sprintf("T%d 0 %d 0\n", mtime.Unix(), mtime.Unix())
+		if scp.IsVerbose {
+			scp.Printf("Sending File timestamp: %q\n", ftime)
+		}
+		_, err := writer.Write([]byte(ftime))
+		if err != nil {
+			return err
+		}
+		err = readExpect(reader, 0)
+		if err != nil {
+			return err
+		}
+	}
 	fileReader, err := os.Open(srcPath)
 	if err != nil {
 		return err
@@ -156,7 +172,7 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	size := srcFileInfo.Size()
 	header := fmt.Sprintf("C%04o %d %s\n", mode, size, filepath.Base(srcPath))
 	if scp.IsVerbose {
-		fmt.Fprintf(errPipe, "Sending File header: %s", header)
+		scp.Printf("Sending File header: %s", header)
 	}
 	pb := NewProgressBarTo(srcPath, size, outPipe)
 	if !scp.IsQuiet {
@@ -214,11 +230,11 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	}
 	if !scp.IsQuiet {
 		pb.Update(size)
-		fmt.Fprintln(errPipe)
+		scp.Println()
 	}
 
 	if err != nil {
-		fmt.Println( err.Error())
+		scp.Println( err.Error())
 	}
 	return err
 }
