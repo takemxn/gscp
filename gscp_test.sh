@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# The following environment variables must be set
+#  $SCPUSER1
+#  $SCPUSER1_PASSWD
+#  $SCPUSER2
+#  $SCPUSER2_PASSWD
+#  $SCPUSER3
+#  $SCPUSER3_PASSWD
+#  $REMOTE
+#  $ROOTPASSWD
+
 . /tmp/gscp_test.conf
 
 CONFIG=/tmp/gscp.conf
@@ -228,8 +238,19 @@ EOS
 [passwords]
 $SCPUSER1=$SCPUSER1_PASSWD
 EOS
-	touch /tmp/p.conf
 	./gscp -F /tmp/p.conf $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	diff $D/from /tmp/to
+	rm -rf ${GSSH_PASSWORDFILE}
+	set +x
+
+	echo TEST:'-w'
+	init_dir
+	set -x
+	rm -f ~/.gssh ${CONFIG}
+	export GSSH_PASSWORDFILE=
+	export GSSH_PASSWORDS=
+	echo a > $D/from/a.txt
+	./gscp -w ${SCPUSER3_PASSWD} $D/from/a.txt ${SCPUSER3}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	rm -rf ${GSSH_PASSWORDFILE}
 	set +x

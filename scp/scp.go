@@ -116,8 +116,8 @@ password_file format:
   [passwods]
   user=password
 
-environment variabl $GSSH_PASSWORDFILE, $GSSH_PASSWORDS use for password specify.
-
+environment variable $GSSH_PASSWORDFILE is password list file
+$GSSH_PASSWORDS is password list.
 priority of password
   -w option
   -F option
