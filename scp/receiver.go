@@ -259,6 +259,7 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	pb := NewProgressBarTo(rcvFile.filename, rcvFile.size, scp.Stderr)
 	if !scp.IsQuiet {
 		pb.Update(0)
+		defer scp.Println()
 	}
 	//TODO: mode here
 	// fw, err := os.Create(thisDstFile)
@@ -327,7 +328,6 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	}
 	if !scp.IsQuiet {
 		pb.Update(tot)
-		scp.Println() //new line
 	}
 	if scp.IsVerbose {
 		scp.Printf("\nRenamed %q to %q", tmpFile, thisDstFile)

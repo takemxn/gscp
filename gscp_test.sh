@@ -34,7 +34,8 @@ init_dir(){
 	rm -rf $D/to
 	mkdir ${D}/from
 	mkdir ${D}/to
-	gssh ${SCPUSER1}@${REMOTE} <<EOS
+	chmod 777 ${D}/from ${D}/to
+	gssh -p ${ROOTPASSWD} root@${REMOTE} <<EOS
 rm -rf $D/from
 rm -rf $D/to
 mkdir $D/from
@@ -130,6 +131,7 @@ TEST_P(){
 TEST_ERR_PTN(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
+	cp ${CONFIG} ~/.gssh
 	init_dir
 	set -x
 	mkdir $D/from/ttt
@@ -145,14 +147,91 @@ TEST_ERR_PTN(){
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
-	ERR_MSG=`./gscp take@${REMOTE}:/tmp/from /tmp/to 2>&1`
+	ERR_MSG=`./gscp $SCPUSER1@${REMOTE}:/tmp/from /tmp/to 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/from: not a regular file" ]; then
 		err_h $LINENO
 	fi
-	ERR_MSG=`./gscp take@${REMOTE}:/tmp/from/nothing /tmp/to 2>&1`
+	ERR_MSG=`./gscp $SCPUSER1@${REMOTE}:/tmp/from/nothing /tmp/to 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/from/nothing: No such file or directory" ]; then
 		err_h $LINENO
 	fi
+	set +x
+	init_dir
+	set -x
+	echo a> $D/from/a.txt
+	echo b> $D/from/b.txt
+	./gscp $D/from/a.txt ${SCPUSER1}@${REMOTE}:/tmp/to
+	trap '' ERR
+	ERR_MSG=`./gscp -q $D/from/b.txt ${SCPUSER2}@${REMOTE}:/tmp/to/a.txt 2>&1`
+	if [ "${ERR_MSG}" != "scp: /tmp/to/a.txt: Permission denied" ]; then
+		err_h $LINENO
+	fi
+	set +x
+	echo "${FUNCNAME[0]} success"
+}
+TEST_OPT_PSSWD(){
+	trap "err_h $LINENO" ERR
+	echo "${FUNCNAME[0]}"
+
+	echo TEST:\$GSSH_PASSWORDS
+	set -x
+	rm -f ~/.gssh ${CONFIG}
+	export GSSH_PASSWORDFILE=
+	export GSSH_PASSWORDS="${SCPUSER1}=${SCPUSER1_PASSWD} ${SCPUSER2}=${SCPUSER2_PASSWD}"
+	init_dir
+	echo a > $D/from/a.txt
+	echo b > $D/from/b.txt
+	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	./gscp $D/from/b.txt ${SCPUSER2}@localhost:/tmp/to
+	diff $D/from /tmp/to
+	set +x
+
+	echo TEST:~/.gssh
+	init_dir
+	set -x
+	rm -f ~/.gssh ${CONFIG}
+	export GSSH_PASSWORDFILE=
+	cat <<EOS >~/.gssh
+[passwords]
+$SCPUSER1=$SCPUSER1_PASSWD
+EOS
+	export GSSH_PASSWORDS=
+	echo a > $D/from/a.txt
+	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	diff $D/from /tmp/to
+	set +x
+
+	echo TEST:\$GSSH_PASSWORDFILE
+	init_dir
+	set -x
+	rm -f ~/.gssh ${CONFIG}
+	export GSSH_PASSWORDFILE=/tmp/p.conf
+	cat <<EOS >${GSSH_PASSWORDFILE}
+[passwords]
+$SCPUSER1=$SCPUSER1_PASSWD
+EOS
+	export GSSH_PASSWORDS=
+	echo a > $D/from/a.txt
+	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	diff $D/from /tmp/to
+	rm -rf ${GSSH_PASSWORDFILE}
+	set +x
+
+	echo TEST:'-F'
+	init_dir
+	set -x
+	rm -f ~/.gssh ${CONFIG}
+	export GSSH_PASSWORDFILE=
+	export GSSH_PASSWORDS=
+	echo a > $D/from/a.txt
+	cat <<EOS >/tmp/p.conf
+[passwords]
+$SCPUSER1=$SCPUSER1_PASSWD
+EOS
+	touch /tmp/p.conf
+	./gscp -F /tmp/p.conf $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	diff $D/from /tmp/to
+	rm -rf ${GSSH_PASSWORDFILE}
 	set +x
 	echo "${FUNCNAME[0]} success"
 }

@@ -108,8 +108,7 @@ func (scp *Scp) ParseFlags(call []string) error {
 		err = errors.New("Not enough args")
 	}
 	if help {
-		fmt.Fprintln(scp.Stderr, `
-command example:
+		scp.Println(`command example:
   scp -F password_file user@host:/from/file /to/.
   scp -w password user@host:/from/file /to/.
 

@@ -6,6 +6,8 @@ import (
 	com "github.com/takemxn/gssh/common"
 	"os"
 	"io"
+	"bufio"
+	"errors"
 )
 func readExpect(r io.Reader, expect byte)(err error){
 	b := make([]byte, 1)
@@ -13,8 +15,21 @@ func readExpect(r io.Reader, expect byte)(err error){
 	if err != nil {
 		return
 	}
-	if b[0] != expect {
+	switch b[0]{
+	case expect:
+		return
+	case 1:
+		// scp message
+		br := bufio.NewReader(r)
+		line, _, err := br.ReadLine()
+		if err != nil {
+			return err
+		}
+		return errors.New(string(line))
+	default:
 		err = fmt.Errorf("not expected receive:%v", b)
+	}
+	if b[0] != expect {
 	}
 	return
 }
@@ -177,6 +192,7 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	pb := NewProgressBarTo(srcPath, size, outPipe)
 	if !scp.IsQuiet {
 		pb.Update(0)
+		defer scp.Println()
 	}
 	_, err = writer.Write([]byte(header))
 	if err != nil {
@@ -230,7 +246,6 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 	}
 	if !scp.IsQuiet {
 		pb.Update(size)
-		scp.Println()
 	}
 
 	if err != nil {

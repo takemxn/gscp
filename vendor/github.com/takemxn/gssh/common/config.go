@@ -53,6 +53,7 @@ func (c *Config) ReadPasswords() (err error) {
 			if group == nil {
 				return errors.New("$GSSH_PASSWORDS illeagal format")
 			}
+			fmt.Println("group:", group)
 			c.passwords[group[1]] = group[2]
 		}
 	}
