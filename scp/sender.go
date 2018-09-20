@@ -152,6 +152,22 @@ func (scp *Scp) sendEndDir(reader io.Reader, writer io.Writer, errPipe io.Writer
 
 func (scp *Scp) sendDir(reader io.Reader, writer io.Writer, srcPath string, srcFileInfo os.FileInfo, errPipe io.Writer) error {
 	mode := uint32(srcFileInfo.Mode().Perm())
+	if scp.IsPreserve {
+		// send time stamp
+		mtime := srcFileInfo.ModTime()
+		ftime := fmt.Sprintf("T%d 0 %d 0\n", mtime.Unix(), mtime.Unix())
+		if scp.IsVerbose {
+			scp.Printf("Sending File timestamp: %q\n", ftime)
+		}
+		_, err := writer.Write([]byte(ftime))
+		if err != nil {
+			return err
+		}
+		err = readExpect(reader, 0)
+		if err != nil {
+			return err
+		}
+	}
 	header := fmt.Sprintf("D%04o 0 %s\n", mode, filepath.Base(srcPath))
 	if scp.IsVerbose {
 		scp.Printf("Sending Dir header : %s", header)

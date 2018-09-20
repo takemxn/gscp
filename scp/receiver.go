@@ -55,6 +55,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 		return
 	}
 
+	dirs := make(map[string]FileSet)
 	fs := new(FileSet)
 	for {
 		b := make([]byte, 1)
@@ -88,6 +89,12 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			return errors.New(string(line))
 		case 'E':
 			//E command: go back out of dir
+			if scp.IsPreserve{
+				fs := dirs[dstDir]
+				if err := os.Chtimes(dstDir, fs.atime, fs.mtime); err != nil {
+					return err
+				}
+			}
 			dstDir = filepath.Dir(dstDir)
 			if scp.IsVerbose {
 				scp.Printf("Received End-Dir:%q\n", dstDir)
@@ -133,6 +140,9 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 			err = os.MkdirAll(thisDstFile, fileMode)
 			if err != nil {
 				return err
+			}
+			if scp.IsPreserve {
+				dirs[thisDstFile] = *fs
 			}
 			dstDir = thisDstFile
 			err = sendByte(cw, 0)

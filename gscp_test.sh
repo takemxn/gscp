@@ -132,9 +132,9 @@ TEST_P(){
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
 	sleep 2
-	./gscp -p -v -r $D/from $SCPUSER1@${REMOTE}:$D/
+	./gscp -p -v -r $D/from $SCPUSER1@${REMOTE}:$D/to
 	sleep 2
-	./gscp -p -v -r $SCPUSER1@${REMOTE}:$D/from $D/to/.
+	./gscp -p -v -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff_deep $D/from $D/to/from
 	set +x
 	echo "${FUNCNAME[0]} success"
