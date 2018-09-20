@@ -5,6 +5,7 @@ import (
 	"errors"
 	com "github.com/takemxn/gssh/common"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -43,7 +44,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 	}
 	defer func(){
 		if scp.IsVerbose {
-			scp.Println("local receiver end")
+			scp.Println("\nLocal receiver end")
 		}
 	}()
 	if scp.IsVerbose {
@@ -255,19 +256,24 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	}else{
 		thisDstFile = filepath.Join(dstDir, dstName)
 	}
-	if scp.IsVerbose {
-		scp.Println("Creating destination file: ", thisDstFile)
-	}
 	pb := NewProgressBarTo(rcvFile.filename, rcvFile.size, scp.Stderr)
 	if !scp.IsQuiet {
 		pb.Update(0)
 	}
 	//TODO: mode here
-	fw, err := os.Create(thisDstFile)
+	// fw, err := os.Create(thisDstFile)
+	fw , err := ioutil.TempFile(dstDir, ".tmp.*")
 	if err != nil {
 		return
 	}
-	defer fw.Close()
+	tmpFile := fw.Name()
+	if scp.IsVerbose {
+		scp.Println("\nCopying to destination tmpfile: ", tmpFile)
+	}
+	defer func(){
+		fw.Close()
+		os.Remove(tmpFile)
+	}()
 	reader := bufio.NewReader(rd)
 	tot := int64(0)
 	lastPercent := int64(0)
@@ -310,6 +316,10 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	if err != nil {
 		return
 	}
+	err = os.Rename(tmpFile, thisDstFile)
+	if err != nil {
+		return
+	}
 	if scp.IsPreserve {
 		if err := os.Chtimes(thisDstFile, rcvFile.atime, rcvFile.mtime); err != nil {
 			return err
@@ -318,6 +328,9 @@ func (scp *Scp) receiveFile(rd io.Reader, cw io.Writer, dstDir, dstName string, 
 	if !scp.IsQuiet {
 		pb.Update(tot)
 		scp.Println() //new line
+	}
+	if scp.IsVerbose {
+		scp.Printf("\nRenamed %q to %q", tmpFile, thisDstFile)
 	}
 	return
 }

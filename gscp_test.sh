@@ -42,7 +42,7 @@ mkdir $D/to
 chmod 777 $D/from $D/to
 EOS
 }
-TEST_NORM_PTN(){
+TEST_NORM_COPY(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	init_dir
@@ -94,8 +94,8 @@ TEST_NORM_PTN(){
 	echo b > $D/from/b.txt
 	echo c > $D/from/d1/c.txt
 	head -c 20m /dev/urandom > $D/from/d1/d2/d3/20m.bin
-	./gscp -r $D/from/*.txt $D/from/d1 $SCPUSER1@${REMOTE}:$D/to
-	./gscp -r $SCPUSER1@${REMOTE}:$D/to/*.txt $SCPUSER1@${REMOTE}:$D/to/d1 $D/to/.
+	./gscp -v -r $D/from/*.txt $D/from/d1 $SCPUSER1@${REMOTE}:$D/to
+	./gscp -v -r $SCPUSER1@${REMOTE}:$D/to/*.txt $SCPUSER1@${REMOTE}:$D/to/d1 $D/to/.
 	diff -r $D/from $D/to
 	set +x
 	echo TEST:REMOTE TO REMOTE
@@ -103,9 +103,9 @@ TEST_NORM_PTN(){
 	set -x
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	./gscp -q  $D/from/* $SCPUSER1@${REMOTE}:$D/from/.
-	./gscp -q  $SCPUSER1@${REMOTE}:$D/from/* $SCPUSER2@${REMOTE}:$D/to
-	./gscp -q  $SCPUSER2@${REMOTE}:$D/to/* $D/to
+	./gscp -q -v $D/from/* $SCPUSER1@${REMOTE}:$D/from/.
+	./gscp -q -v $SCPUSER1@${REMOTE}:$D/from/* $SCPUSER2@${REMOTE}:$D/to
+	./gscp -q -v $SCPUSER2@${REMOTE}:$D/to/* $D/to
 	diff -r $D/from $D/to
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -158,6 +158,24 @@ TEST_ERR_PTN(){
 }
 main(){
 	trap "err_h $LINENO" ERR
+	while getopts :a OPT
+	do
+		case $OPT in
+			a) FLAG_A=1
+		esac
+	done
+	shift $((OPTIND -1))
+	func_list=`typeset -F|cut -d' ' -f3|egrep "^TEST_"`
+	if [ -n "${FLAG_A}" ]; then
+		for f in ${func_list}
+		do
+			eval "$f"
+		done
+	elif [ ${#@} -eq 0 ]; then
+		echo :list test function
+		echo "${func_list}"
+		exit 0
+	fi
 	eval "$1"
 }
 main "$@" 2>&1 | tee gscp_test.log

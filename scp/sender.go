@@ -27,14 +27,14 @@ func (scp *Scp) sendFromRemote(file, user, host string, ech chan error) (r io.Re
 	ci := com.NewConnectInfo(user, host, scp.Port, password)
 	conn, err := ci.Connect()
 	if err != nil {
-		fmt.Printf("unable to create session: %s", err)
+		scp.Printf("unable to create session: %s", err)
 		return
 	}
 	s, err := conn.NewSession()
 	if err != nil {
 		return
 	} else if scp.IsVerbose {
-		fmt.Fprintln(scp.Stderr, "Got sender session")
+		scp.Println("Got sender session")
 	}
 	w, err = s.StdinPipe()
 	if err != nil {
@@ -76,12 +76,12 @@ func (scp *Scp) sendFromLocal(srcFile string, reader io.Reader, writer io.Writer
 		if srcFileInfo.IsDir() {
 			err = scp.processDir(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
-				fmt.Println( err.Error())
+				scp.Println( err.Error())
 			}
 		} else {
 			err = scp.sendFile(reader, writer, srcFile, srcFileInfo, outPipe, errPipe)
 			if err != nil {
-				fmt.Println( err.Error())
+				scp.Println( err.Error())
 			}
 		}
 	} else {
@@ -129,7 +129,7 @@ func (scp *Scp) processDir(reader io.Reader, writer io.Writer, srcFilePath strin
 func (scp *Scp) sendEndDir(reader io.Reader, writer io.Writer, errPipe io.Writer) error {
 	header := fmt.Sprintf("E\n")
 	if scp.IsVerbose {
-		fmt.Fprintf(errPipe, "Sending end dir: %s", header)
+		scp.Printf("Sending end dir: %s", header)
 	}
 	_, err := writer.Write([]byte(header))
 	return err
@@ -139,7 +139,7 @@ func (scp *Scp) sendDir(reader io.Reader, writer io.Writer, srcPath string, srcF
 	mode := uint32(srcFileInfo.Mode().Perm())
 	header := fmt.Sprintf("D%04o 0 %s\n", mode, filepath.Base(srcPath))
 	if scp.IsVerbose {
-		fmt.Fprintf(errPipe, "Sending Dir header : %s", header)
+		scp.Printf("Sending Dir header : %s", header)
 	}
 	_, err := writer.Write([]byte(header))
 	return err
@@ -218,7 +218,7 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 		lastPercent = percent
 	}
 	if scp.IsVerbose {
-		fmt.Println( "Sent file.")
+		scp.Println( "Sent file.")
 	}
 	err = sendByte(writer, 0)
 	if err != nil {
