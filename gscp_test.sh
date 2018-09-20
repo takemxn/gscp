@@ -56,9 +56,9 @@ EOS
 TEST_NORM_COPY(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
+	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
 	init_dir
 	set -x
-	export GSSH_PASSWORDFILE=${CONFIG}
 	echo NORMAL1
 	echo abcdefg > $D/from/t.txt
 	./gscp -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to
@@ -125,6 +125,7 @@ TEST_P(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	echo TEST:RECURSIVE,PRESERVE
+	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
 	init_dir
 	set -x
 	mkdir $D/from/d1
@@ -141,7 +142,7 @@ TEST_P(){
 TEST_ERR_PTN(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
-	cp ${CONFIG} ~/.gssh
+	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
 	init_dir
 	set -x
 	mkdir $D/from/ttt
