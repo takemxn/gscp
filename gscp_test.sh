@@ -142,9 +142,9 @@ TEST_P(){
 TEST_ERR_PTN(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
-	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
 	init_dir
 	set -x
+	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
