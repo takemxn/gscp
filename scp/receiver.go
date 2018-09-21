@@ -26,14 +26,21 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 	dstFileInfo, e := os.Stat(dstFile)
 	dstDir := dstFile
 	dstName := ""
-	dstFileNotExist := false
 	if e != nil {
 		if !os.IsNotExist(e) {
 			return e
 		}
 		dstDir = filepath.Dir(dstFile)
 		dstName = filepath.Base(dstFile)
-		dstFileNotExist = true
+		if scp.IsRecursive {
+			if scp.IsVerbose {
+				scp.Printf("makdir %q\n", scp.dstFile)
+			}
+			err = os.Mkdir(scp.dstFile, os.ModePerm)
+			if err != nil {
+				return err
+			}
+		}
 	} else if dstFileInfo.IsDir() {
 		dstDir = dstFile
 	} else if dstFileInfo.Mode().IsRegular() {
@@ -57,7 +64,7 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = scp.localReceiver(rd, cw, dstDir, dstName, dstFileNotExist)
+	err = scp.localReceiver(rd, cw, dstDir, dstName)
 	if err == io.EOF{
 		err = nil 
 	}
@@ -221,7 +228,7 @@ func (scp *Scp) parseCmdLine(rd io.Reader) (parts []string, err error){
 	}
 	return
 }
-func (scp *Scp) localReceiver(rd io.Reader, cw io.Writer, dstDir, dstName string, dstFileNotExist bool) (err error){
+func (scp *Scp) localReceiver(rd io.Reader, cw io.Writer, dstDir, dstName string) (err error){
 	fs := new(FileSet)
 	for {
 		b := make([]byte, 1)
@@ -275,15 +282,6 @@ func (scp *Scp) localReceiver(rd io.Reader, cw io.Writer, dstDir, dstName string
 				return fmt.Errorf("scp: %q/%q is not aregular file", dstDir, fs.filename)
 			}
 			fileMode := os.FileMode(uint32(fs.mode))
-			if dstFileNotExist {
-				if scp.IsVerbose {
-					scp.Printf("makdir %q\n", scp.dstFile)
-				}
-				err = os.Mkdir(scp.dstFile, fileMode)
-				if err != nil {
-					return err
-				}
-			}
 			//D command (directory)
 			thisDstFile := filepath.Join(dstDir, fs.filename)
 			err = os.MkdirAll(thisDstFile, fileMode)
@@ -294,7 +292,7 @@ func (scp *Scp) localReceiver(rd io.Reader, cw io.Writer, dstDir, dstName string
 			if err != nil {
 				return err
 			}
-			err = scp.localReceiver(rd, cw, thisDstFile, dstName, false)
+			err = scp.localReceiver(rd, cw, thisDstFile, dstName)
 			if err != nil {
 				return err
 			}
