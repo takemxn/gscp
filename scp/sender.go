@@ -250,7 +250,7 @@ func (scp *Scp) sendFile(reader io.Reader, writer io.Writer, srcPath string, src
 		lastPercent = percent
 	}
 	if scp.IsVerbose {
-		scp.Println( "Sent file.")
+		scp.Println( "\nSent file:", srcPath)
 	}
 	err = sendByte(writer, 0)
 	if err != nil {

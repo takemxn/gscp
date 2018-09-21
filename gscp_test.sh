@@ -81,8 +81,8 @@ TEST_NORM_COPY(){
 	init_dir
 	set -x
 	echo def > $D/from/t.txt
-	F=1m.bin
-	head -c 1m /dev/urandom > $D/from/${F}
+	F=1G.bin
+	head -c 1G /dev/urandom > $D/from/${F}
 	./gscp -v $D/from/* $SCPUSER1@${REMOTE}:$D/to
 	./gscp -v $SCPUSER1@${REMOTE}:$D/to/* $D/to/
 	diff $D/from $D/to
@@ -90,9 +90,13 @@ TEST_NORM_COPY(){
 	echo TEST:RECURSIVE
 	init_dir
 	set -x
-	mkdir $D/from/d1
+	mkdir -p $D/from/d1/d2/d3
+	mkdir -p $D/from/d4/d5/d6
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
+	head -c 10m /dev/urandom > $D/from/d1/d2/d3/10m.bin
+	head -c 800000 /dev/urandom > $D/from/d4/d5/d6/d7.bin
+	head -c 200m /dev/urandom > $D/from/d4/d5/d6/200m.bin
 	./gscp -r $D/from $SCPUSER1@${REMOTE}:$D/to
 	./gscp -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff -r $D/from $D/to/from
@@ -100,14 +104,17 @@ TEST_NORM_COPY(){
 	echo TEST:MULTI COPY
 	init_dir
 	set -x
-	mkdir -p $D/from/d1/d2/d3
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	echo c > $D/from/d1/c.txt
-	head -c 20m /dev/urandom > $D/from/d1/d2/d3/20m.bin
-	./gscp -v -r $D/from/*.txt $D/from/d1 $SCPUSER1@${REMOTE}:$D/to
-	./gscp -v -r $SCPUSER1@${REMOTE}:$D/to/*.txt $SCPUSER1@${REMOTE}:$D/to/d1 $D/to/.
-	diff -r $D/from $D/to
+	mkdir -p $D/from/d1/d2
+	head -c 800001 /dev/urandom > $D/from/d1/d1.bin
+	head -c 800002 /dev/urandom > $D/from/d1/d2.bin
+	head -c 800002 /dev/urandom > $D/from/d1/d2/d3.bin
+	./gscp -p -v -r $D/from/*.txt $D/from/d1 $SCPUSER1@${REMOTE}:$D/to
+	./gscp -p -v -r $SCPUSER1@${REMOTE}:$D/to/*.txt $SCPUSER1@${REMOTE}:$D/to/d1 $D/to/.
+	diff $D/from/a.txt $D/to/a.txt
+	diff $D/from/b.txt $D/to/b.txt
+	diff_deep $D/from/d1 $D/to/d1
 	set +x
 	echo TEST:REMOTE TO REMOTE
 	init_dir

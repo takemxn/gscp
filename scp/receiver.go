@@ -37,6 +37,9 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 	} else if dstFileInfo.IsDir() {
 		dstDir = dstFile
 	} else if dstFileInfo.Mode().IsRegular() {
+		if scp.IsRecursive {
+				return fmt.Errorf("scp: %q: Not a directory", dstFile)
+		}
 		dstDir = filepath.Dir(dstFile)
 		dstName = dstFileInfo.Name()
 	}else{
@@ -54,152 +57,9 @@ func (scp *Scp) openLocalReceiver(rd io.Reader, cw io.Writer) (err error) {
 	if err != nil {
 		return
 	}
-
-	dirs := make(map[string]FileSet)
-	fs := new(FileSet)
-	for {
-		b := make([]byte, 1)
-		n, err := rd.Read(b)
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return err
-		}
-		if n == 0 {
-			return err
-		}
-		cmd := b[0]
-		if scp.IsVerbose {
-			scp.Printf("cmd : [%s](%02x)\n", string(cmd), cmd)
-		}
-		switch cmd {
-		case 0x0:
-			//continue
-			if scp.IsVerbose {
-				scp.Printf("Received OK \n")
-			}
-		case 0x1:
-			// scp message
-			br := bufio.NewReader(rd)
-			line, _, err := br.ReadLine()
-			if err != nil {
-				return err
-			}
-			return errors.New(string(line))
-		case 'E':
-			//E command: go back out of dir
-			if scp.IsPreserve{
-				fs := dirs[dstDir]
-				if err := os.Chtimes(dstDir, fs.atime, fs.mtime); err != nil {
-					return err
-				}
-			}
-			dstDir = filepath.Dir(dstDir)
-			if scp.IsVerbose {
-				scp.Printf("Received End-Dir:%q\n", dstDir)
-			}
-			err = sendByte(cw, 0)
-			if err != nil {
-				scp.Println("Write error: %s", err.Error())
-				return err
-			}
-		case 0xA:
-			//0xA command: end?
-			if scp.IsVerbose {
-				scp.Printf("Received All-done\n")
-			}
-		case 'D':
-			parts, err := scp.parseCmdLine(rd)
-			if err != nil {
-				return err
-			}
-			fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
-			if err != nil {
-				return err
-			}
-			if !scp.IsRecursive {
-				err = fmt.Errorf("scp: %q/%q is not aregular file", dstDir, fs.filename)
-				break
-			}
-			fileMode := os.FileMode(uint32(fs.mode))
-			if dstFileNotExist {
-				if scp.IsVerbose {
-					scp.Printf("makdir %q\n", dstDir)
-				}
-				err = os.Mkdir(dstDir, fileMode)
-				if err != nil {
-					return err
-				}
-			}else if !dstFileInfo.IsDir(){
-				err = fmt.Errorf("scp: %q: Not a directory", dstFile)
-				return err
-			}
-			//D command (directory)
-			thisDstFile := filepath.Join(dstDir, fs.filename)
-			err = os.MkdirAll(thisDstFile, fileMode)
-			if err != nil {
-				return err
-			}
-			if scp.IsPreserve {
-				dirs[thisDstFile] = *fs
-			}
-			dstDir = thisDstFile
-			err = sendByte(cw, 0)
-			if err != nil {
-				return err
-			}
-		case 'C':
-			parts, err := scp.parseCmdLine(rd)
-			if err != nil {
-				return err
-			}
-			fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
-			if err != nil {
-				return err
-			}
-			err = sendByte(cw, 0)
-			if err != nil {
-				scp.Println("Write error: %s", err.Error())
-				return err
-			}
-			err = scp.receiveFile(rd, cw, dstDir, dstName, fs)
-			if err != nil {
-				return err
-			}
-			err = sendByte(cw, 0)
-			if err != nil {
-				scp.Println("Write error: %s", err.Error())
-				return err
-			}
-		case 'T':
-			parts, err := scp.parseCmdLine(rd)
-			if err != nil {
-				return err
-			}
-			// modification time
-			t, err := strconv.ParseUint(parts[0], 10, 64)
-			if err != nil {
-				return err
-			}
-			fs.mtime = time.Unix(int64(t), 0)
-			// access time
-			t, err = strconv.ParseUint(parts[2], 10, 64)
-			if err != nil {
-				return err
-			}
-			fs.atime = time.Unix(int64(t), 0)
-			err = sendByte(cw, 0)
-			if err != nil {
-				scp.Println("Write error: %s", err.Error())
-				return err
-			}
-		default :
-			if scp.IsVerbose{
-				err = fmt.Errorf("scp: Command '%x' NOT implemented\n", cmd)
-			}
-			return err
-		}
+	err = scp.localReceiver(rd, cw, dstDir, dstName, dstFileNotExist)
+	if err == io.EOF{
+		err = nil 
 	}
 	return
 }
@@ -358,6 +218,139 @@ func (scp *Scp) parseCmdLine(rd io.Reader) (parts []string, err error){
 	if cmdLine == "" || len(parts) == 0 {
 		scp.Printf("Received OK \n")
 		return
+	}
+	return
+}
+func (scp *Scp) localReceiver(rd io.Reader, cw io.Writer, dstDir, dstName string, dstFileNotExist bool) (err error){
+	fs := new(FileSet)
+	for {
+		b := make([]byte, 1)
+		n, err := rd.Read(b)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return err
+		}
+		cmd := b[0]
+		if scp.IsVerbose {
+			scp.Printf("cmd : [%s](%02x)\n", string(cmd), cmd)
+		}
+		switch cmd {
+		case 0x0:
+			//continue
+			if scp.IsVerbose {
+				scp.Printf("Received OK \n")
+			}
+		case 0x1:
+			// scp message
+			br := bufio.NewReader(rd)
+			line, _, err := br.ReadLine()
+			if err != nil {
+				return err
+			}
+			return errors.New(string(line))
+		case 'E':
+			err = sendByte(cw, 0)
+			if err != nil {
+				scp.Println("Write error: %s", err.Error())
+				return err
+			}
+			return nil
+		case 0xA:
+			//0xA command: end?
+			if scp.IsVerbose {
+				scp.Printf("Received All-done\n")
+			}
+		case 'D':
+			parts, err := scp.parseCmdLine(rd)
+			if err != nil {
+				return err
+			}
+			fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
+			if err != nil {
+				return err
+			}
+			if !scp.IsRecursive {
+				return fmt.Errorf("scp: %q/%q is not aregular file", dstDir, fs.filename)
+			}
+			fileMode := os.FileMode(uint32(fs.mode))
+			if dstFileNotExist {
+				if scp.IsVerbose {
+					scp.Printf("makdir %q\n", scp.dstFile)
+				}
+				err = os.Mkdir(scp.dstFile, fileMode)
+				if err != nil {
+					return err
+				}
+			}
+			//D command (directory)
+			thisDstFile := filepath.Join(dstDir, fs.filename)
+			err = os.MkdirAll(thisDstFile, fileMode)
+			if err != nil {
+				return err
+			}
+			err = sendByte(cw, 0)
+			if err != nil {
+				return err
+			}
+			err = scp.localReceiver(rd, cw, thisDstFile, dstName, false)
+			if err != nil {
+				return err
+			}
+			if scp.IsPreserve{
+				if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
+					return err
+				}
+			}
+		case 'C':
+			parts, err := scp.parseCmdLine(rd)
+			if err != nil {
+				return err
+			}
+			fs.mode, fs.size, fs.filename, err = scp.parseCmd(parts)
+			if err != nil {
+				return err
+			}
+			err = sendByte(cw, 0)
+			if err != nil {
+				scp.Println("Write error: %s", err.Error())
+				return err
+			}
+			err = scp.receiveFile(rd, cw, dstDir, dstName, fs)
+			if err != nil {
+				return err
+			}
+			err = sendByte(cw, 0)
+			if err != nil {
+				scp.Println("Write error: %s", err.Error())
+				return err
+			}
+		case 'T':
+			parts, err := scp.parseCmdLine(rd)
+			if err != nil {
+				return err
+			}
+			// modification time
+			t, err := strconv.ParseUint(parts[0], 10, 64)
+			if err != nil {
+				return err
+			}
+			fs.mtime = time.Unix(int64(t), 0)
+			// access time
+			t, err = strconv.ParseUint(parts[2], 10, 64)
+			if err != nil {
+				return err
+			}
+			fs.atime = time.Unix(int64(t), 0)
+			err = sendByte(cw, 0)
+			if err != nil {
+				scp.Println("Write error: %s", err.Error())
+				return err
+			}
+		default :
+			return fmt.Errorf("scp: Command '%x' NOT implemented\n", cmd)
+		}
 	}
 	return
 }
