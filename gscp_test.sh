@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # The following environment variables must be set
-#  $SCPUSER1
-#  $SCPUSER1_PASSWD
-#  $SCPUSER2
-#  $SCPUSER2_PASSWD
-#  $SCPUSER3
-#  $SCPUSER3_PASSWD
+#  $LRUSER1
+#  $LRUSER1_PASSWD
+#  $RUSER1
+#  $RUSER1_PASSWD
+#  $LUSER1
+#  $LUSER1_PASSWD
 #  $REMOTE
 #  $ROOTPASSWD
 
@@ -15,8 +15,8 @@
 CONFIG=/tmp/gscp.conf
 cat <<EOS >$CONFIG
 [passwords]
-$SCPUSER1=$SCPUSER1_PASSWD
-$SCPUSER2=$SCPUSER2_PASSWD
+$LRUSER1=$LRUSER1_PASSWD
+$RUSER1=$RUSER1_PASSWD
 EOS
 
 D=/tmp
@@ -56,16 +56,16 @@ EOS
 TEST_NORM_COPY(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
-	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
 	init_dir
 	set -x
+	export GSSH_PASSWORDS="$LRUSER1=$LRUSER1_PASSWD $RUSER1=$RUSER1_PASSWD"
 	echo NORMAL1
 	echo abcdefg > $D/from/t.txt
-	./gscp -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to
-	./gscp -v $SCPUSER1@${REMOTE}:$D/to/t.txt $D/to/.
+	./gscp -v $D/from/t.txt $LRUSER1@${REMOTE}:$D/to
+	./gscp -v $LRUSER1@${REMOTE}:$D/to/t.txt $D/to/.
 	diff $D/from/t.txt $D/to/t.txt
-	./gscp -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to/b.txt
-	./gscp -v $SCPUSER1@${REMOTE}:$D/to/b.txt $D/to/c.txt
+	./gscp -v $D/from/t.txt $LRUSER1@${REMOTE}:$D/to/b.txt
+	./gscp -v $LRUSER1@${REMOTE}:$D/to/b.txt $D/to/c.txt
 	diff $D/from/t.txt $D/to/c.txt
 	set +x
 	echo 20m
@@ -73,57 +73,50 @@ TEST_NORM_COPY(){
 	set -x
 	F=20m.bin
 	head -c 20m /dev/urandom > $D/from/${F}
-	./gscp $D/from/${F} $SCPUSER1@${REMOTE}:$D/to/.
-	./gscp $SCPUSER1@${REMOTE}:$D/to/${F} $D/to/
+	./gscp $D/from/${F} $LRUSER1@${REMOTE}:$D/to/.
+	./gscp $LRUSER1@${REMOTE}:$D/to/${F} $D/to/
 	diff $D/from/${F} $D/to/
 	echo TEST:WILDCARD
 	set +x
 	init_dir
 	set -x
 	echo def > $D/from/t.txt
-	F=1G.bin
-	head -c 1G /dev/urandom > $D/from/${F}
-	./gscp -v $D/from/* $SCPUSER1@${REMOTE}:$D/to
-	./gscp -v $SCPUSER1@${REMOTE}:$D/to/* $D/to/
+	F=1m.bin
+	head -c 1m /dev/urandom > $D/from/${F}
+	./gscp -v $D/from/* $LRUSER1@${REMOTE}:$D/to
+	./gscp -v $LRUSER1@${REMOTE}:$D/to/* $D/to/
 	diff $D/from $D/to
 	set +x
 	echo TEST:RECURSIVE
 	init_dir
 	set -x
-	mkdir -p $D/from/d1/d2/d3
-	mkdir -p $D/from/d4/d5/d6
+	mkdir $D/from/d1
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
-	head -c 10m /dev/urandom > $D/from/d1/d2/d3/10m.bin
-	head -c 800000 /dev/urandom > $D/from/d4/d5/d6/d7.bin
-	head -c 200m /dev/urandom > $D/from/d4/d5/d6/200m.bin
-	./gscp -r $D/from $SCPUSER1@${REMOTE}:$D/to
-	./gscp -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
+	./gscp -r $D/from $LRUSER1@${REMOTE}:$D/to
+	./gscp -r $LRUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff -r $D/from $D/to/from
 	set +x
 	echo TEST:MULTI COPY
 	init_dir
 	set -x
+	mkdir -p $D/from/d1/d2/d3
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	mkdir -p $D/from/d1/d2
-	head -c 800001 /dev/urandom > $D/from/d1/d1.bin
-	head -c 800002 /dev/urandom > $D/from/d1/d2.bin
-	head -c 800002 /dev/urandom > $D/from/d1/d2/d3.bin
-	./gscp -p -v -r $D/from/*.txt $D/from/d1 $SCPUSER1@${REMOTE}:$D/to
-	./gscp -p -v -r $SCPUSER1@${REMOTE}:$D/to/*.txt $SCPUSER1@${REMOTE}:$D/to/d1 $D/to/.
-	diff $D/from/a.txt $D/to/a.txt
-	diff $D/from/b.txt $D/to/b.txt
-	diff_deep $D/from/d1 $D/to/d1
+	echo c > $D/from/d1/c.txt
+	head -c 20m /dev/urandom > $D/from/d1/d2/d3/20m.bin
+	./gscp -v -r $D/from/*.txt $D/from/d1 $LRUSER1@${REMOTE}:$D/to
+	./gscp -v -r $LRUSER1@${REMOTE}:$D/to/*.txt $LRUSER1@${REMOTE}:$D/to/d1 $D/to/.
+	diff -r $D/from $D/to
 	set +x
 	echo TEST:REMOTE TO REMOTE
 	init_dir
 	set -x
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	./gscp -q -v $D/from/* $SCPUSER1@${REMOTE}:$D/from/.
-	./gscp -q -v $SCPUSER1@${REMOTE}:$D/from/* $SCPUSER2@${REMOTE}:$D/to
-	./gscp -q -v $SCPUSER2@${REMOTE}:$D/to/* $D/to
+	./gscp -q -v $D/from/* $LRUSER1@${REMOTE}:$D/from/.
+	./gscp -q -v $LRUSER1@${REMOTE}:$D/from/* $RUSER1@${REMOTE}:$D/to
+	./gscp -q -v $RUSER1@${REMOTE}:$D/to/* $D/to
 	diff -r $D/from $D/to
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -132,16 +125,16 @@ TEST_P(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
 	echo TEST:RECURSIVE,PRESERVE
-	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
+	export GSSH_PASSWORDS="$LRUSER1=$LRUSER1_PASSWD $RUSER1=$RUSER1_PASSWD"
 	init_dir
 	set -x
 	mkdir $D/from/d1
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
 	sleep 2
-	./gscp -p -v -r $D/from $SCPUSER1@${REMOTE}:$D/to
+	./gscp -p -v -r $D/from $LRUSER1@${REMOTE}:$D/to
 	sleep 2
-	./gscp -p -v -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
+	./gscp -p -v -r $LRUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff_deep $D/from $D/to/from
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -151,11 +144,11 @@ TEST_ERR_PTN(){
 	echo "${FUNCNAME[0]}"
 	init_dir
 	set -x
-	export GSSH_PASSWORDS="$SCPUSER1=$SCPUSER1_PASSWD $SCPUSER2=$SCPUSER2_PASSWD"
+	export GSSH_PASSWORDS="$LRUSER1=$LRUSER1_PASSWD $RUSER1=$RUSER1_PASSWD"
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
-	ERR_MSG=`./gscp -qr $SCPUSER1@${REMOTE}:$D/from/. $D/to/t.txt 2>&1`
+	ERR_MSG=`./gscp -qr $LRUSER1@${REMOTE}:$D/from/. $D/to/t.txt 2>&1`
 	if [ "${ERR_MSG}" != "scp: \"$D/to/t.txt\": Not a directory" ]; then
 		err_h $LINENO
 	fi
@@ -165,11 +158,11 @@ TEST_ERR_PTN(){
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
-	ERR_MSG=`./gscp $SCPUSER1@${REMOTE}:/tmp/from /tmp/to 2>&1`
+	ERR_MSG=`./gscp $LRUSER1@${REMOTE}:/tmp/from /tmp/to 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/from: not a regular file" ]; then
 		err_h $LINENO
 	fi
-	ERR_MSG=`./gscp $SCPUSER1@${REMOTE}:/tmp/from/nothing /tmp/to 2>&1`
+	ERR_MSG=`./gscp $LRUSER1@${REMOTE}:/tmp/from/nothing /tmp/to 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/from/nothing: No such file or directory" ]; then
 		err_h $LINENO
 	fi
@@ -178,14 +171,10 @@ TEST_ERR_PTN(){
 	set -x
 	echo a> $D/from/a.txt
 	echo b> $D/from/b.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@${REMOTE}:/tmp/to
+	./gscp $D/from/a.txt ${LRUSER1}@${REMOTE}:/tmp/to
 	trap '' ERR
-	ERR_MSG=`./gscp -q $D/from/b.txt ${SCPUSER2}@${REMOTE}:/tmp/to/a.txt 2>&1`
+	ERR_MSG=`./gscp -q $D/from/b.txt ${RUSER1}@${REMOTE}:/tmp/to/a.txt 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/to/a.txt: Permission denied" ]; then
-		err_h $LINENO
-	fi
-	ERR_MSG=`./gscp -r ${SCPUSER1}@localhost:/tmp/from /tmp/to/from/a 2>&1`
-	if [ "${ERR_MSG}" != "mkdir /tmp/to/from/a: no such file or directory" ]; then
 		err_h $LINENO
 	fi
 	set +x
@@ -199,12 +188,12 @@ TEST_OPT_PSSWD(){
 	set -x
 	rm -f ~/.gssh ${CONFIG}
 	export GSSH_PASSWORDFILE=
-	export GSSH_PASSWORDS="${SCPUSER1}=${SCPUSER1_PASSWD} ${SCPUSER2}=${SCPUSER2_PASSWD}"
+	export GSSH_PASSWORDS="${LRUSER1}=${LRUSER1_PASSWD} ${LUSER1}=${LUSER1_PASSWD}"
 	init_dir
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
-	./gscp $D/from/b.txt ${SCPUSER2}@localhost:/tmp/to
+	./gscp $D/from/a.txt ${LRUSER1}@localhost:/tmp/to
+	./gscp $D/from/b.txt ${LUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	set +x
 
@@ -215,11 +204,11 @@ TEST_OPT_PSSWD(){
 	export GSSH_PASSWORDFILE=
 	cat <<EOS >~/.gssh
 [passwords]
-$SCPUSER1=$SCPUSER1_PASSWD
+$LRUSER1=$LRUSER1_PASSWD
 EOS
 	export GSSH_PASSWORDS=
 	echo a > $D/from/a.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	./gscp $D/from/a.txt ${LRUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	set +x
 
@@ -230,11 +219,11 @@ EOS
 	export GSSH_PASSWORDFILE=/tmp/p.conf
 	cat <<EOS >${GSSH_PASSWORDFILE}
 [passwords]
-$SCPUSER1=$SCPUSER1_PASSWD
+$LRUSER1=$LRUSER1_PASSWD
 EOS
 	export GSSH_PASSWORDS=
 	echo a > $D/from/a.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	./gscp $D/from/a.txt ${LRUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	rm -rf ${GSSH_PASSWORDFILE}
 	set +x
@@ -248,9 +237,9 @@ EOS
 	echo a > $D/from/a.txt
 	cat <<EOS >/tmp/p.conf
 [passwords]
-$SCPUSER1=$SCPUSER1_PASSWD
+$LRUSER1=$LRUSER1_PASSWD
 EOS
-	./gscp -F /tmp/p.conf $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	./gscp -F /tmp/p.conf $D/from/a.txt ${LRUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	rm -rf ${GSSH_PASSWORDFILE}
 	set +x
@@ -262,7 +251,7 @@ EOS
 	export GSSH_PASSWORDFILE=
 	export GSSH_PASSWORDS=
 	echo a > $D/from/a.txt
-	./gscp -w ${SCPUSER3_PASSWD} $D/from/a.txt ${SCPUSER3}@localhost:/tmp/to
+	./gscp -w ${LUSER1_PASSWD} $D/from/a.txt ${LUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	rm -rf ${GSSH_PASSWORDFILE}
 	set +x
