@@ -95,26 +95,11 @@ TEST_NORM_COPY(){
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
 	head -c 10m /dev/urandom > $D/from/d1/d2/d3/10m.bin
-	head -c 800000 /dev/urandom > $D/from/d4/d5/d6/d7.bin
+	head -c $(date '+%s') /dev/urandom > $D/from/d4/d5/d6/d7.bin
 	head -c 200m /dev/urandom > $D/from/d4/d5/d6/200m.bin
 	./gscp -r $D/from $LRUSER1@${REMOTE}:$D/to
 	./gscp -r $LRUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff -r $D/from $D/to/from
-	set +x
-	echo TEST:MULTI COPY
-	init_dir
-	set -x
-	echo a > $D/from/a.txt
-	echo b > $D/from/b.txt
-	mkdir -p $D/from/d1/d2
-	head -c 800001 /dev/urandom > $D/from/d1/d1.bin
-	head -c 800002 /dev/urandom > $D/from/d1/d2.bin
-	head -c 800002 /dev/urandom > $D/from/d1/d2/d3.bin
-	./gscp -p -v -r $D/from/*.txt $D/from/d1 $LRUSER1@${REMOTE}:$D/to
-	./gscp -p -v -r $LRUSER1@${REMOTE}:$D/to/*.txt $LRUSER1@${REMOTE}:$D/to/d1 $D/to/.
-	diff $D/from/a.txt $D/to/a.txt
-	diff $D/from/b.txt $D/to/b.txt
-	diff_deep $D/from/d1 $D/to/d1
 	set +x
 	echo TEST:REMOTE TO REMOTE
 	init_dir
@@ -143,6 +128,26 @@ TEST_P(){
 	sleep 2
 	./gscp -p -v -r $LRUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff_deep $D/from $D/to/from
+	set +x
+	echo TEST:RECURSIVE,PRESERVE2
+	init_dir
+	set -x
+	echo a > $D/from/a.txt
+	echo b > $D/from/b.txt
+	mkdir -p $D/from/d1/d2
+	head -c 800001 /dev/urandom > $D/from/d1/d1.bin
+	head -c 800002 /dev/urandom > $D/from/d1/d2.bin
+	head -c 800002 /dev/urandom > $D/from/d1/d2/d3.bin
+	chmod 722 $D/from/d1/d2
+	chmod 722 $D/from/d1/d2.bin
+	chmod 600 $D/from/d1/d2/d3.bin
+	sleep 2
+	./gscp -p -v -r $D/from/*.txt $D/from/d1 $LRUSER1@${REMOTE}:$D/to
+	sleep 2
+	./gscp -p -v -r $LRUSER1@${REMOTE}:$D/to/*.txt $LRUSER1@${REMOTE}:$D/to/d1 $D/to/.
+	diff $D/from/a.txt $D/to/a.txt
+	diff $D/from/b.txt $D/to/b.txt
+	diff_deep $D/from/d1 $D/to/d1
 	set +x
 	echo "${FUNCNAME[0]} success"
 }

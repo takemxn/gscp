@@ -300,6 +300,9 @@ func (scp *Scp) localReceiver(rd io.Reader, cw io.Writer, dstDir, dstName string
 				if err := os.Chtimes(thisDstFile, fs.atime, fs.mtime); err != nil {
 					return err
 				}
+				if err := os.Chmod(thisDstFile, fs.mode); err != nil {
+					return err
+				}
 			}
 		case 'C':
 			parts, err := scp.parseCmdLine(rd)
