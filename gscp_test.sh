@@ -291,3 +291,4 @@ main(){
 	eval "$1"
 }
 main "$@" 2>&1 | tee gscp_test.log
+exit ${PIPESTATUS[0]}
