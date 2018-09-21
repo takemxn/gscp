@@ -184,6 +184,10 @@ TEST_ERR_PTN(){
 	if [ "${ERR_MSG}" != "scp: /tmp/to/a.txt: Permission denied" ]; then
 		err_h $LINENO
 	fi
+	ERR_MSG=`./gscp -r ${SCPUSER1}@localhost:/tmp/from /tmp/to/from/a 2>&1`
+	if [ "${ERR_MSG}" != "mkdir /tmp/to/from/a: no such file or directory" ]; then
+		err_h $LINENO
+	fi
 	set +x
 	echo "${FUNCNAME[0]} success"
 }
