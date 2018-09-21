@@ -56,9 +56,9 @@ EOS
 TEST_NORM_COPY(){
 	trap "err_h $LINENO" ERR
 	echo "${FUNCNAME[0]}"
+	export GSSH_PASSWORDS="$LRUSER1=$LRUSER1_PASSWD $RUSER1=$RUSER1_PASSWD"
 	init_dir
 	set -x
-	export GSSH_PASSWORDS="$LRUSER1=$LRUSER1_PASSWD $RUSER1=$RUSER1_PASSWD"
 	echo NORMAL1
 	echo abcdefg > $D/from/t.txt
 	./gscp -v $D/from/t.txt $LRUSER1@${REMOTE}:$D/to
@@ -81,8 +81,8 @@ TEST_NORM_COPY(){
 	init_dir
 	set -x
 	echo def > $D/from/t.txt
-	F=1m.bin
-	head -c 1m /dev/urandom > $D/from/${F}
+	F=1G.bin
+	head -c 1G /dev/urandom > $D/from/${F}
 	./gscp -v $D/from/* $LRUSER1@${REMOTE}:$D/to
 	./gscp -v $LRUSER1@${REMOTE}:$D/to/* $D/to/
 	diff $D/from $D/to
@@ -90,9 +90,13 @@ TEST_NORM_COPY(){
 	echo TEST:RECURSIVE
 	init_dir
 	set -x
-	mkdir $D/from/d1
+	mkdir -p $D/from/d1/d2/d3
+	mkdir -p $D/from/d4/d5/d6
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
+	head -c 10m /dev/urandom > $D/from/d1/d2/d3/10m.bin
+	head -c 800000 /dev/urandom > $D/from/d4/d5/d6/d7.bin
+	head -c 200m /dev/urandom > $D/from/d4/d5/d6/200m.bin
 	./gscp -r $D/from $LRUSER1@${REMOTE}:$D/to
 	./gscp -r $LRUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff -r $D/from $D/to/from
@@ -100,14 +104,17 @@ TEST_NORM_COPY(){
 	echo TEST:MULTI COPY
 	init_dir
 	set -x
-	mkdir -p $D/from/d1/d2/d3
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	echo c > $D/from/d1/c.txt
-	head -c 20m /dev/urandom > $D/from/d1/d2/d3/20m.bin
-	./gscp -v -r $D/from/*.txt $D/from/d1 $LRUSER1@${REMOTE}:$D/to
-	./gscp -v -r $LRUSER1@${REMOTE}:$D/to/*.txt $LRUSER1@${REMOTE}:$D/to/d1 $D/to/.
-	diff -r $D/from $D/to
+	mkdir -p $D/from/d1/d2
+	head -c 800001 /dev/urandom > $D/from/d1/d1.bin
+	head -c 800002 /dev/urandom > $D/from/d1/d2.bin
+	head -c 800002 /dev/urandom > $D/from/d1/d2/d3.bin
+	./gscp -p -v -r $D/from/*.txt $D/from/d1 $LRUSER1@${REMOTE}:$D/to
+	./gscp -p -v -r $LRUSER1@${REMOTE}:$D/to/*.txt $LRUSER1@${REMOTE}:$D/to/d1 $D/to/.
+	diff $D/from/a.txt $D/to/a.txt
+	diff $D/from/b.txt $D/to/b.txt
+	diff_deep $D/from/d1 $D/to/d1
 	set +x
 	echo TEST:REMOTE TO REMOTE
 	init_dir
@@ -175,6 +182,10 @@ TEST_ERR_PTN(){
 	trap '' ERR
 	ERR_MSG=`./gscp -q $D/from/b.txt ${RUSER1}@${REMOTE}:/tmp/to/a.txt 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/to/a.txt: Permission denied" ]; then
+		err_h $LINENO
+	fi
+	ERR_MSG=`./gscp -r ${LRUSER1}@localhost:/tmp/from /tmp/to/from/a 2>&1`
+	if [ "${ERR_MSG}" != "mkdir /tmp/to/from/a: no such file or directory" ]; then
 		err_h $LINENO
 	fi
 	set +x
