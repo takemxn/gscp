@@ -19,6 +19,8 @@ $SCPUSER1=$SCPUSER1_PASSWD
 $SCPUSER2=$SCPUSER2_PASSWD
 EOS
 
+GSCP=./gscp
+
 D=/tmp
 err_h(){
 	set +x
@@ -61,11 +63,11 @@ TEST_NORM_COPY(){
 	set -x
 	echo NORMAL1
 	echo abcdefg > $D/from/t.txt
-	./gscp -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to
-	./gscp -v $SCPUSER1@${REMOTE}:$D/to/t.txt $D/to/.
+	${GSCP} -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to
+	${GSCP} -v $SCPUSER1@${REMOTE}:$D/to/t.txt $D/to/.
 	diff $D/from/t.txt $D/to/t.txt
-	./gscp -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to/b.txt
-	./gscp -v $SCPUSER1@${REMOTE}:$D/to/b.txt $D/to/c.txt
+	${GSCP} -v $D/from/t.txt $SCPUSER1@${REMOTE}:$D/to/b.txt
+	${GSCP} -v $SCPUSER1@${REMOTE}:$D/to/b.txt $D/to/c.txt
 	diff $D/from/t.txt $D/to/c.txt
 	set +x
 	echo 20m
@@ -73,8 +75,8 @@ TEST_NORM_COPY(){
 	set -x
 	F=20m.bin
 	head -c 20m /dev/urandom > $D/from/${F}
-	./gscp $D/from/${F} $SCPUSER1@${REMOTE}:$D/to/.
-	./gscp $SCPUSER1@${REMOTE}:$D/to/${F} $D/to/
+	${GSCP} $D/from/${F} $SCPUSER1@${REMOTE}:$D/to/.
+	${GSCP} $SCPUSER1@${REMOTE}:$D/to/${F} $D/to/
 	diff $D/from/${F} $D/to/
 	echo TEST:WILDCARD
 	set +x
@@ -83,8 +85,8 @@ TEST_NORM_COPY(){
 	echo def > $D/from/t.txt
 	F=1m.bin
 	head -c 1m /dev/urandom > $D/from/${F}
-	./gscp -v $D/from/* $SCPUSER1@${REMOTE}:$D/to
-	./gscp -v $SCPUSER1@${REMOTE}:$D/to/* $D/to/
+	${GSCP} -v $D/from/* $SCPUSER1@${REMOTE}:$D/to
+	${GSCP} -v $SCPUSER1@${REMOTE}:$D/to/* $D/to/
 	diff $D/from $D/to
 	set +x
 	echo TEST:RECURSIVE
@@ -93,8 +95,8 @@ TEST_NORM_COPY(){
 	mkdir $D/from/d1
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
-	./gscp -r $D/from $SCPUSER1@${REMOTE}:$D/to
-	./gscp -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
+	${GSCP} -r $D/from $SCPUSER1@${REMOTE}:$D/to
+	${GSCP} -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff -r $D/from $D/to/from
 	set +x
 	echo TEST:MULTI COPY
@@ -105,8 +107,8 @@ TEST_NORM_COPY(){
 	echo b > $D/from/b.txt
 	echo c > $D/from/d1/c.txt
 	head -c 20m /dev/urandom > $D/from/d1/d2/d3/20m.bin
-	./gscp -v -r $D/from/*.txt $D/from/d1 $SCPUSER1@${REMOTE}:$D/to
-	./gscp -v -r $SCPUSER1@${REMOTE}:$D/to/*.txt $SCPUSER1@${REMOTE}:$D/to/d1 $D/to/.
+	${GSCP} -v -r $D/from/*.txt $D/from/d1 $SCPUSER1@${REMOTE}:$D/to
+	${GSCP} -v -r $SCPUSER1@${REMOTE}:$D/to/*.txt $SCPUSER1@${REMOTE}:$D/to/d1 $D/to/.
 	diff -r $D/from $D/to
 	set +x
 	echo TEST:REMOTE TO REMOTE
@@ -114,9 +116,9 @@ TEST_NORM_COPY(){
 	set -x
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	./gscp -q -v $D/from/* $SCPUSER1@${REMOTE}:$D/from/.
-	./gscp -q -v $SCPUSER1@${REMOTE}:$D/from/* $SCPUSER2@${REMOTE}:$D/to
-	./gscp -q -v $SCPUSER2@${REMOTE}:$D/to/* $D/to
+	${GSCP} -q -v $D/from/* $SCPUSER1@${REMOTE}:$D/from/.
+	${GSCP} -q -v $SCPUSER1@${REMOTE}:$D/from/* $SCPUSER2@${REMOTE}:$D/to
+	${GSCP} -q -v $SCPUSER2@${REMOTE}:$D/to/* $D/to
 	diff -r $D/from $D/to
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -132,9 +134,9 @@ TEST_P(){
 	echo a > $D/from/a.txt
 	echo b > $D/from/d1/b.txt
 	sleep 2
-	./gscp -p -v -r $D/from $SCPUSER1@${REMOTE}:$D/to
+	${GSCP} -p -v -r $D/from $SCPUSER1@${REMOTE}:$D/to
 	sleep 2
-	./gscp -p -v -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
+	${GSCP} -p -v -r $SCPUSER1@${REMOTE}:$D/to/from $D/to/.
 	diff_deep $D/from $D/to/from
 	set +x
 	echo "${FUNCNAME[0]} success"
@@ -148,7 +150,7 @@ TEST_ERR_PTN(){
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
-	ERR_MSG=`./gscp -qr $SCPUSER1@${REMOTE}:$D/from/. $D/to/t.txt 2>&1`
+	ERR_MSG=`${GSCP} -qr $SCPUSER1@${REMOTE}:$D/from/. $D/to/t.txt 2>&1`
 	if [ "${ERR_MSG}" != "scp: \"$D/to/t.txt\": Not a directory" ]; then
 		err_h $LINENO
 	fi
@@ -158,11 +160,11 @@ TEST_ERR_PTN(){
 	mkdir $D/from/ttt
 	touch $D/to/t.txt
 	trap '' ERR
-	ERR_MSG=`./gscp $SCPUSER1@${REMOTE}:/tmp/from /tmp/to 2>&1`
+	ERR_MSG=`${GSCP} $SCPUSER1@${REMOTE}:/tmp/from /tmp/to 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/from: not a regular file" ]; then
 		err_h $LINENO
 	fi
-	ERR_MSG=`./gscp $SCPUSER1@${REMOTE}:/tmp/from/nothing /tmp/to 2>&1`
+	ERR_MSG=`${GSCP} $SCPUSER1@${REMOTE}:/tmp/from/nothing /tmp/to 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/from/nothing: No such file or directory" ]; then
 		err_h $LINENO
 	fi
@@ -171,9 +173,9 @@ TEST_ERR_PTN(){
 	set -x
 	echo a> $D/from/a.txt
 	echo b> $D/from/b.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@${REMOTE}:/tmp/to
+	${GSCP} $D/from/a.txt ${SCPUSER1}@${REMOTE}:/tmp/to
 	trap '' ERR
-	ERR_MSG=`./gscp -q $D/from/b.txt ${SCPUSER2}@${REMOTE}:/tmp/to/a.txt 2>&1`
+	ERR_MSG=`${GSCP} -q $D/from/b.txt ${SCPUSER2}@${REMOTE}:/tmp/to/a.txt 2>&1`
 	if [ "${ERR_MSG}" != "scp: /tmp/to/a.txt: Permission denied" ]; then
 		err_h $LINENO
 	fi
@@ -192,8 +194,8 @@ TEST_OPT_PSSWD(){
 	init_dir
 	echo a > $D/from/a.txt
 	echo b > $D/from/b.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
-	./gscp $D/from/b.txt ${SCPUSER2}@localhost:/tmp/to
+	${GSCP} $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	${GSCP} $D/from/b.txt ${SCPUSER2}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	set +x
 
@@ -208,7 +210,7 @@ $SCPUSER1=$SCPUSER1_PASSWD
 EOS
 	export GSSH_PASSWORDS=
 	echo a > $D/from/a.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	${GSCP} $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	set +x
 
@@ -223,7 +225,7 @@ $SCPUSER1=$SCPUSER1_PASSWD
 EOS
 	export GSSH_PASSWORDS=
 	echo a > $D/from/a.txt
-	./gscp $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	${GSCP} $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	rm -rf ${GSSH_PASSWORDFILE}
 	set +x
@@ -239,7 +241,7 @@ EOS
 [passwords]
 $SCPUSER1=$SCPUSER1_PASSWD
 EOS
-	./gscp -F /tmp/p.conf $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
+	${GSCP} -F /tmp/p.conf $D/from/a.txt ${SCPUSER1}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	rm -rf ${GSSH_PASSWORDFILE}
 	set +x
@@ -251,7 +253,7 @@ EOS
 	export GSSH_PASSWORDFILE=
 	export GSSH_PASSWORDS=
 	echo a > $D/from/a.txt
-	./gscp -w ${SCPUSER3_PASSWD} $D/from/a.txt ${SCPUSER3}@localhost:/tmp/to
+	${GSCP} -w ${SCPUSER3_PASSWD} $D/from/a.txt ${SCPUSER3}@localhost:/tmp/to
 	diff $D/from /tmp/to
 	rm -rf ${GSSH_PASSWORDFILE}
 	set +x
