@@ -24,7 +24,7 @@ func (c *Config) ReadPasswords() (err error) {
 		if len(c.configPath) == 0 {
 			usr, err := user.Current()
 			if err == nil {
-				f := usr.HomeDir + "/.gssh"
+				f := usr.HomeDir + "/.config/gssh"
 				_, err = os.Stat(f)
 				if os.IsNotExist(err) == false {
 					c.configPath = f
@@ -53,7 +53,6 @@ func (c *Config) ReadPasswords() (err error) {
 			if group == nil {
 				return errors.New("$GSSH_PASSWORDS illeagal format")
 			}
-			fmt.Println("group:", group)
 			c.passwords[group[1]] = group[2]
 		}
 	}
