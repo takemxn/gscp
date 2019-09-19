@@ -1,7 +1,7 @@
 # gscp
 <pre>
 Usage: `scp [options] [[user@]host1:]file1 [[user@]host2:]file2`
-  -F /home/id_rsa        : password file path
+  -F /home/pwfile        : password file path
   -P 22                  : Port number
   -f                     : Remote 'from' mode - not currently supported
   -h                     : help
